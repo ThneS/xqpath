@@ -240,6 +240,54 @@ pub enum PathExpression {
         name: String,
         args: Vec<PathExpression>,
     },
+
+    /// 条件表达式: if condition then expr1 else expr2 end
+    Conditional {
+        condition: Box<PathExpression>,
+        then_expr: Box<PathExpression>,
+        else_expr: Option<Box<PathExpression>>,
+    },
+
+    /// 比较操作: left op right
+    Comparison {
+        left: Box<PathExpression>,
+        op: ComparisonOp,
+        right: Box<PathExpression>,
+    },
+
+    /// 逻辑操作: left op right 或 not expr
+    Logical {
+        op: LogicalOp,
+        operands: Vec<PathExpression>,
+    },
+}
+
+/// 比较操作符
+#[derive(Debug, Clone, PartialEq)]
+pub enum ComparisonOp {
+    /// 等于 ==
+    Equal,
+    /// 不等于 !=
+    NotEqual,
+    /// 小于 <
+    LessThan,
+    /// 小于等于 <=
+    LessThanOrEqual,
+    /// 大于 >
+    GreaterThan,
+    /// 大于等于 >=
+    GreaterThanOrEqual,
+}
+
+/// 逻辑操作符
+#[derive(Debug, Clone, PartialEq)]
+pub enum LogicalOp {
+    /// 逻辑与 and / &&
+    And,
+    /// 逻辑或 or / ||
+    Or,
+    /// 逻辑非 not
+    Not,
 }
 
 impl PathExpression {
@@ -262,7 +310,7 @@ impl PathExpression {
     }
 
     /// 创建管道表达式
-    pub fn pipe(left: PathExpression, right: PathExpression) -> Self {
+    pub fn pipe(left: PathExpression, right: PathExpression) -> PathExpression {
         PathExpression::Pipe {
             left: Box::new(left),
             right: Box::new(right),
@@ -310,13 +358,59 @@ impl PathExpression {
 
             PathExpression::FunctionCall { name, args } => {
                 if args.is_empty() {
-                    name.clone()
+                    format!("{name}()")
                 } else {
                     let arg_strings: Vec<String> =
                         args.iter().map(|arg| format!("{arg}")).collect();
                     format!("{}({})", name, arg_strings.join(", "))
                 }
             }
+
+            PathExpression::Conditional {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                if let Some(else_expr) = else_expr {
+                    format!(
+                        "if {condition} then {then_expr} else {else_expr} end"
+                    )
+                } else {
+                    format!("if {condition} then {then_expr} end")
+                }
+            }
+
+            PathExpression::Comparison { left, op, right } => {
+                let op_str = match op {
+                    ComparisonOp::Equal => "==",
+                    ComparisonOp::NotEqual => "!=",
+                    ComparisonOp::LessThan => "<",
+                    ComparisonOp::LessThanOrEqual => "<=",
+                    ComparisonOp::GreaterThan => ">",
+                    ComparisonOp::GreaterThanOrEqual => ">=",
+                };
+                format!("{left} {op_str} {right}")
+            }
+
+            PathExpression::Logical { op, operands } => match op {
+                LogicalOp::And => operands
+                    .iter()
+                    .map(|e| format!("{e}"))
+                    .collect::<Vec<_>>()
+                    .join(" and "),
+                LogicalOp::Or => operands
+                    .iter()
+                    .map(|e| format!("{e}"))
+                    .collect::<Vec<_>>()
+                    .join(" or "),
+                LogicalOp::Not => {
+                    if operands.len() == 1 {
+                        format!("not {}", operands[0])
+                    } else {
+                        "not (invalid)".to_string()
+                    }
+                }
+            },
         }
     }
 }
@@ -453,6 +547,96 @@ impl PathExpression {
                     has_recursive_wildcards,
                 }
             }
+
+            PathExpression::Conditional {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                let condition_complexity =
+                    condition.analyze_complexity_with_depth(current_depth + 1);
+                let then_complexity =
+                    then_expr.analyze_complexity_with_depth(current_depth + 1);
+
+                let else_complexity = if let Some(else_expr) = else_expr {
+                    else_expr.analyze_complexity_with_depth(current_depth + 1)
+                } else {
+                    ExpressionComplexity {
+                        depth: current_depth + 1,
+                        pipe_count: 0,
+                        comma_branches: 1,
+                        has_wildcards: false,
+                        has_recursive_wildcards: false,
+                    }
+                };
+
+                ExpressionComplexity {
+                    depth: condition_complexity
+                        .depth
+                        .max(then_complexity.depth)
+                        .max(else_complexity.depth),
+                    pipe_count: condition_complexity.pipe_count
+                        + then_complexity.pipe_count
+                        + else_complexity.pipe_count,
+                    comma_branches: condition_complexity.comma_branches
+                        + then_complexity.comma_branches
+                        + else_complexity.comma_branches,
+                    has_wildcards: condition_complexity.has_wildcards
+                        || then_complexity.has_wildcards
+                        || else_complexity.has_wildcards,
+                    has_recursive_wildcards: condition_complexity
+                        .has_recursive_wildcards
+                        || then_complexity.has_recursive_wildcards
+                        || else_complexity.has_recursive_wildcards,
+                }
+            }
+
+            PathExpression::Comparison { left, right, .. } => {
+                let left_complexity =
+                    left.analyze_complexity_with_depth(current_depth + 1);
+                let right_complexity =
+                    right.analyze_complexity_with_depth(current_depth + 1);
+
+                ExpressionComplexity {
+                    depth: left_complexity.depth.max(right_complexity.depth),
+                    pipe_count: left_complexity.pipe_count
+                        + right_complexity.pipe_count,
+                    comma_branches: left_complexity.comma_branches
+                        * right_complexity.comma_branches,
+                    has_wildcards: left_complexity.has_wildcards
+                        || right_complexity.has_wildcards,
+                    has_recursive_wildcards: left_complexity
+                        .has_recursive_wildcards
+                        || right_complexity.has_recursive_wildcards,
+                }
+            }
+
+            PathExpression::Logical { operands, .. } => {
+                let mut max_depth = current_depth + 1;
+                let mut total_pipe_count = 0;
+                let mut total_branches = 1;
+                let mut has_wildcards = false;
+                let mut has_recursive_wildcards = false;
+
+                for operand in operands {
+                    let complexity = operand
+                        .analyze_complexity_with_depth(current_depth + 1);
+                    max_depth = max_depth.max(complexity.depth);
+                    total_pipe_count += complexity.pipe_count;
+                    total_branches *= complexity.comma_branches;
+                    has_wildcards = has_wildcards || complexity.has_wildcards;
+                    has_recursive_wildcards = has_recursive_wildcards
+                        || complexity.has_recursive_wildcards;
+                }
+
+                ExpressionComplexity {
+                    depth: max_depth,
+                    pipe_count: total_pipe_count,
+                    comma_branches: total_branches,
+                    has_wildcards,
+                    has_recursive_wildcards,
+                }
+            }
         }
     }
 
@@ -503,13 +687,13 @@ impl ExpressionParser {
 
     /// 解析逗号表达式（最低优先级）
     fn parse_comma_expression(input: &mut &str) -> PResult<PathExpression> {
-        let first = Self::parse_pipe_expression.parse_next(input)?;
+        let first = Self::parse_conditional_expression.parse_next(input)?;
 
         // 检查是否有更多逗号分隔的表达式
         let mut expressions = vec![first];
 
         while Self::try_parse_comma.parse_next(input).is_ok() {
-            let next = Self::parse_pipe_expression.parse_next(input)?;
+            let next = Self::parse_conditional_expression.parse_next(input)?;
             expressions.push(next);
         }
 
@@ -520,7 +704,130 @@ impl ExpressionParser {
         })
     }
 
-    /// 解析管道表达式（中等优先级）
+    /// 解析条件表达式（if-then-else）
+    fn parse_conditional_expression(
+        input: &mut &str,
+    ) -> PResult<PathExpression> {
+        let _ = Self::skip_whitespace.parse_next(input);
+
+        // 尝试解析 if 关键字
+        if Self::try_parse_if.parse_next(input).is_ok() {
+            let condition =
+                Self::parse_logical_or_expression.parse_next(input)?;
+
+            Self::parse_then.parse_next(input)?;
+            let then_expr =
+                Self::parse_logical_or_expression.parse_next(input)?;
+
+            let else_expr = if Self::try_parse_else.parse_next(input).is_ok() {
+                Some(Box::new(
+                    Self::parse_logical_or_expression.parse_next(input)?,
+                ))
+            } else {
+                None
+            };
+
+            Self::parse_end.parse_next(input)?;
+
+            Ok(PathExpression::Conditional {
+                condition: Box::new(condition),
+                then_expr: Box::new(then_expr),
+                else_expr,
+            })
+        } else {
+            Self::parse_logical_or_expression.parse_next(input)
+        }
+    }
+
+    /// 解析逻辑or表达式
+    fn parse_logical_or_expression(
+        input: &mut &str,
+    ) -> PResult<PathExpression> {
+        let mut left = Self::parse_logical_and_expression.parse_next(input)?;
+
+        while Self::try_parse_or.parse_next(input).is_ok() {
+            let right = Self::parse_logical_and_expression.parse_next(input)?;
+            left = PathExpression::Logical {
+                op: LogicalOp::Or,
+                operands: vec![left, right],
+            };
+        }
+
+        Ok(left)
+    }
+
+    /// 解析逻辑and表达式
+    fn parse_logical_and_expression(
+        input: &mut &str,
+    ) -> PResult<PathExpression> {
+        let mut left = Self::parse_logical_not_expression.parse_next(input)?;
+
+        while Self::try_parse_and.parse_next(input).is_ok() {
+            let right = Self::parse_logical_not_expression.parse_next(input)?;
+            left = PathExpression::Logical {
+                op: LogicalOp::And,
+                operands: vec![left, right],
+            };
+        }
+
+        Ok(left)
+    }
+
+    /// 解析逻辑not表达式
+    fn parse_logical_not_expression(
+        input: &mut &str,
+    ) -> PResult<PathExpression> {
+        let _ = Self::skip_whitespace.parse_next(input);
+
+        if Self::try_parse_not.parse_next(input).is_ok() {
+            let operand =
+                Self::parse_comparison_expression.parse_next(input)?;
+            Ok(PathExpression::Logical {
+                op: LogicalOp::Not,
+                operands: vec![operand],
+            })
+        } else {
+            Self::parse_comparison_expression.parse_next(input)
+        }
+    }
+
+    /// 解析比较表达式
+    fn parse_comparison_expression(
+        input: &mut &str,
+    ) -> PResult<PathExpression> {
+        let mut left = Self::parse_pipe_expression.parse_next(input)?;
+
+        loop {
+            let _ = Self::skip_whitespace.parse_next(input);
+
+            let op = if Self::try_parse_lte.parse_next(input).is_ok() {
+                ComparisonOp::LessThanOrEqual
+            } else if Self::try_parse_gte.parse_next(input).is_ok() {
+                ComparisonOp::GreaterThanOrEqual
+            } else if Self::try_parse_eq.parse_next(input).is_ok() {
+                ComparisonOp::Equal
+            } else if Self::try_parse_ne.parse_next(input).is_ok() {
+                ComparisonOp::NotEqual
+            } else if Self::try_parse_lt.parse_next(input).is_ok() {
+                ComparisonOp::LessThan
+            } else if Self::try_parse_gt.parse_next(input).is_ok() {
+                ComparisonOp::GreaterThan
+            } else {
+                break;
+            };
+
+            let right = Self::parse_pipe_expression.parse_next(input)?;
+            left = PathExpression::Comparison {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(left)
+    }
+
+    /// 解析管道表达式
     fn parse_pipe_expression(input: &mut &str) -> PResult<PathExpression> {
         let mut left = Self::parse_primary_expression.parse_next(input)?;
 
@@ -801,6 +1108,87 @@ impl ExpressionParser {
     /// 尝试解析管道
     fn try_parse_pipe(input: &mut &str) -> PResult<()> {
         (Self::skip_whitespace, '|', Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    // 条件表达式关键字解析器
+    fn try_parse_if(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "if", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn parse_then(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "then", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_else(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "else", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn parse_end(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "end", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    // 逻辑操作符解析器
+    fn try_parse_or(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "or", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_and(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "and", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_not(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "not", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    // 比较操作符解析器
+    fn try_parse_lte(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "<=", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_gte(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, ">=", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_eq(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "==", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_ne(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "!=", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_lt(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "<", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_gt(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, ">", Self::skip_whitespace)
             .void()
             .parse_next(input)
     }
@@ -1158,7 +1546,153 @@ impl ExpressionEvaluator {
 
                 function.execute(&evaluated_args, value)
             }
+
+            PathExpression::Conditional {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                // 条件表达式：if condition then expr1 else expr2 end
+                let condition_results = self.evaluate(condition, value)?;
+
+                // 检查第一个条件结果的真值
+                let is_truthy = condition_results
+                    .first()
+                    .map(|v| self.is_truthy(v))
+                    .unwrap_or(false);
+
+                if is_truthy {
+                    self.evaluate(then_expr, value)
+                } else if let Some(else_expr) = else_expr {
+                    self.evaluate(else_expr, value)
+                } else {
+                    Ok(vec![Value::Null])
+                }
+            }
+
+            PathExpression::Comparison { left, op, right } => {
+                // 比较操作：left op right
+                let left_results = self.evaluate(left, value)?;
+                let right_results = self.evaluate(right, value)?;
+
+                let left_value = left_results.first().unwrap_or(&Value::Null);
+                let right_value = right_results.first().unwrap_or(&Value::Null);
+
+                let result =
+                    self.compare_values(left_value, op, right_value)?;
+                Ok(vec![Value::Bool(result)])
+            }
+
+            PathExpression::Logical { op, operands } => {
+                // 逻辑操作：operand1 op operand2 或 not operand
+                match op {
+                    LogicalOp::And => {
+                        for operand in operands {
+                            let results = self.evaluate(operand, value)?;
+                            let is_truthy = results
+                                .first()
+                                .map(|v| self.is_truthy(v))
+                                .unwrap_or(false);
+                            if !is_truthy {
+                                return Ok(vec![Value::Bool(false)]);
+                            }
+                        }
+                        Ok(vec![Value::Bool(true)])
+                    }
+                    LogicalOp::Or => {
+                        for operand in operands {
+                            let results = self.evaluate(operand, value)?;
+                            let is_truthy = results
+                                .first()
+                                .map(|v| self.is_truthy(v))
+                                .unwrap_or(false);
+                            if is_truthy {
+                                return Ok(vec![Value::Bool(true)]);
+                            }
+                        }
+                        Ok(vec![Value::Bool(false)])
+                    }
+                    LogicalOp::Not => {
+                        if operands.len() != 1 {
+                            return Err(EvaluationError::InvalidArguments(
+                                "not operator requires exactly one operand"
+                                    .to_string(),
+                            ));
+                        }
+                        let results = self.evaluate(&operands[0], value)?;
+                        let is_truthy = results
+                            .first()
+                            .map(|v| self.is_truthy(v))
+                            .unwrap_or(false);
+                        Ok(vec![Value::Bool(!is_truthy)])
+                    }
+                }
+            }
         }
+    }
+
+    /// 判断值是否为真值（jq-style truthiness）
+    fn is_truthy(&self, value: &Value) -> bool {
+        match value {
+            Value::Null => false,
+            Value::Bool(b) => *b,
+            Value::Number(n) => n.as_f64().unwrap_or(0.0) != 0.0,
+            Value::String(s) => !s.is_empty(),
+            Value::Array(arr) => !arr.is_empty(),
+            Value::Object(obj) => !obj.is_empty(),
+        }
+    }
+
+    /// 比较两个值
+    fn compare_values(
+        &self,
+        left: &Value,
+        op: &ComparisonOp,
+        right: &Value,
+    ) -> Result<bool, EvaluationError> {
+        use std::cmp::Ordering;
+
+        let comparison = match (left, right) {
+            // 相同类型比较
+            (Value::Number(l), Value::Number(r)) => {
+                let l_f64 = l.as_f64().unwrap_or(0.0);
+                let r_f64 = r.as_f64().unwrap_or(0.0);
+                l_f64.partial_cmp(&r_f64).unwrap_or(Ordering::Equal)
+            }
+            (Value::String(l), Value::String(r)) => l.cmp(r),
+            (Value::Bool(l), Value::Bool(r)) => l.cmp(r),
+
+            // null 与任何值比较
+            (Value::Null, Value::Null) => Ordering::Equal,
+            (Value::Null, _) => Ordering::Less,
+            (_, Value::Null) => Ordering::Greater,
+
+            // 不同类型比较：转换为字符串比较
+            _ => {
+                let l_str = serde_json::to_string(left).map_err(|_| {
+                    EvaluationError::Message(
+                        "Failed to serialize left value".to_string(),
+                    )
+                })?;
+                let r_str = serde_json::to_string(right).map_err(|_| {
+                    EvaluationError::Message(
+                        "Failed to serialize right value".to_string(),
+                    )
+                })?;
+                l_str.cmp(&r_str)
+            }
+        };
+
+        let result = match op {
+            ComparisonOp::Equal => comparison == Ordering::Equal,
+            ComparisonOp::NotEqual => comparison != Ordering::Equal,
+            ComparisonOp::LessThan => comparison == Ordering::Less,
+            ComparisonOp::LessThanOrEqual => comparison != Ordering::Greater,
+            ComparisonOp::GreaterThan => comparison == Ordering::Greater,
+            ComparisonOp::GreaterThanOrEqual => comparison != Ordering::Less,
+        };
+
+        Ok(result)
     }
 
     /// 评估路径段序列（重用现有逻辑）

@@ -71,8 +71,8 @@ pub use updater::{
 };
 
 pub use parser::expression::{
-    evaluate_path_expression, parse_path_expression, EvaluationError,
-    ExpressionEvaluator, PathExpression,
+    evaluate_path_expression, parse_path_expression, ComparisonOp,
+    EvaluationError, ExpressionEvaluator, LogicalOp, PathExpression,
 };
 pub use parser::path::{parse_path, ParseError, PathSegment};
 
