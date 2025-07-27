@@ -3,6 +3,7 @@
 use serde_json::json;
 use xqpath::{evaluate_path_expression, parse_path_expression};
 
+#[allow(clippy::uninlined_format_args)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== XQPath v1.2 Phase 1: 内置函数系统演示 ===\n");
 
