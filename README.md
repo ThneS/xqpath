@@ -1,13 +1,13 @@
 # XQPath
 
-> A minimal jq-like path extractor and updater for structured data in Rust
+> A jq-inspired expression parser and evaluator for structured data in Rust
 
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
 
 ## 🎯 项目概述
 
-XQPath 是一个用于结构化数据（JSON/YAML/TOML/CSV）路径提取与更新的高性能 Rust 工具，提供：
+XQPath 是一个用于结构化数据（JSON/YAML/TOML/CSV）路径提取与更新的高性能 Rust 工具，提供 jq 风格的表达式语法：
 
 ### 🧩 双重形态
 
@@ -16,16 +16,61 @@ XQPath 是一个用于结构化数据（JSON/YAML/TOML/CSV）路径提取与更�
 
 ### ✨ 核心特性
 
-| 功能         | 描述                                          | 状态             |
-| ------------ | --------------------------------------------- | ---------------- | --- |
-| **路径提取** | 支持 `.field`、`[index]`、`**` 等 jq 风格路径 | ✅               |
-| **格式支持** | JSON/YAML 自动检测与解析                      | ✅               |
-| **通配符**   | `*`、`**` 支持字段和递归匹配                  | ✅               |
-| **类型断言** | 如 `.users[]                                  | string` 类型过滤 | ✅  |
-| **字段更新** | 使用 `feature = "update"` 启用更新功能        | ⚙️               |
-| **格式扩展** | 插件式支持 TOML、XML 等格式                   | ⚡️              |
-| **高测试性** | 全模块单元测试，覆盖边界情况                  | 🧪               |
-| **轻量依赖** | 最小依赖集（serde + winnow）                  | 📦               |
+| 功能           | 描述                                          | 状态                           |
+| -------------- | --------------------------------------------- | ------------------------------ | --- |
+| **路径提取**   | 支持 `.field`、`[index]`、`**` 等 jq 风格路径 | ✅                             |
+| **管道操作**   | `expr1                                        | expr2` 管道操作符（v1.1 新增） | ✅  |
+| **逗号操作**   | `expr1, expr2` 多选择操作符（v1.1 新增）      | ✅                             |
+| **字面量**     | `"string"`, `42`, `true`, `null` 支持         | ✅                             |
+| **恒等表达式** | `.` 恒等操作，返回输入值（v1.1 新增）         | ✅                             |
+| **格式支持**   | JSON/YAML 自动检测与解析                      | ✅                             |
+| **通配符**     | `*`、`**` 支持字段和递归匹配                  | ✅                             |
+| **类型断言**   | 如 `.users[]                                  | string` 类型过滤               | ✅  |
+| **字段更新**   | 使用 `feature = "update"` 启用更新功能        | ⚙️                             |
+| **格式扩展**   | 插件式支持 TOML、XML 等格式                   | ⚡️                            |
+| **高测试性**   | 全模块单元测试，覆盖边界情况                  | 🧪                             |
+| **轻量依赖**   | 最小依赖集（serde + winnow）                  | 📦                             |
+
+## 🆕 v1.1 新特性
+
+### 表达式语法支持
+
+XQPath v1.1 引入了 jq 风格的表达式语法，支持：
+
+- **管道操作符 `|`**：`expr1 | expr2` 将左表达式的结果传递给右表达式
+- **逗号操作符 `,`**：`expr1, expr2` 收集多个表达式的所有结果
+- **括号表达式**：`(expr)` 改变操作优先级
+- **字面量值**：支持字符串、数字、布尔值和 null
+- **恒等表达式**：`.` 返回输入值本身
+
+### 语法示例
+
+```rust
+use xqpath::{parse_path_expression, evaluate_path_expression};
+use serde_json::json;
+
+let data = json!({
+    "users": [
+        {"name": "Alice", "age": 30},
+        {"name": "Bob", "age": 25}
+    ]
+});
+
+// 管道操作：获取第一个用户的名字
+let expr = parse_path_expression(".users | [0] | .name")?;
+let result = evaluate_path_expression(&expr, &data)?;
+// 结果: ["Alice"]
+
+// 逗号操作：获取所有用户名和年龄
+let expr = parse_path_expression(".users[*].name, .users[*].age")?;
+let result = evaluate_path_expression(&expr, &data)?;
+// 结果: ["Alice", "Bob", 30, 25]
+
+// 复杂表达式：混合使用管道和逗号
+let expr = parse_path_expression("(.users | [*] | .name), \"summary\"")?;
+let result = evaluate_path_expression(&expr, &data)?;
+// 结果: ["Alice", "Bob", "summary"]
+```
 
 ## 📦 项目架构
 
@@ -38,7 +83,8 @@ xqpath/
 │   ├── extractor.rs    # 路径提取核心逻辑
 │   ├── updater.rs      # 路径更新逻辑（feature = "update"）
 │   ├── parser/
-│   │   └── path.rs     # 路径表达式解析（winnow 实现）
+│   │   ├── path.rs     # 路径段解析（winnow 实现）
+│   │   └── expression.rs # 表达式解析与求值（v1.1 新增）
 │   ├── value/
 │   │   ├── format.rs   # ValueFormat trait 抽象
 │   │   ├── json.rs     # JSON 格式支持
@@ -296,3 +342,23 @@ cargo build --release --features update
 ---
 
 > **设计理念**: XQPath 致力于提供简单、高效、可扩展的结构化数据处理体验，无论是在命令行环境还是 Rust 应用程序中。
+
+## 🔄 向后兼容性
+
+XQPath v1.1 完全向后兼容 v1.0 的 API 和语法：
+
+- **现有代码无需修改**：所有 v1.0 的路径语法（如 `.field[0].*`）继续工作
+- **API 保持不变**：现有的 `extract()` 函数和宏继续可用
+- **自动语法检测**：库会自动检测是使用传统路径语法还是新的表达式语法
+- **渐进式升级**：您可以在现有项目中逐步采用新的表达式功能
+
+### 迁移指南
+
+```rust
+// v1.0 语法（继续支持）
+let result = datapath_get!(".users[0].name", data);
+
+// v1.1 新语法（可选升级）
+let expr = parse_path_expression(".users | [0] | .name")?;
+let result = evaluate_path_expression(&expr, &data)?;
+```

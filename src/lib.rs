@@ -70,6 +70,10 @@ pub use updater::{
     update, ConfigurableUpdater, UpdateError, Updater, UpdaterConfig,
 };
 
+pub use parser::expression::{
+    evaluate_path_expression, parse_path_expression, EvaluationError,
+    ExpressionEvaluator, PathExpression,
+};
 pub use parser::path::{parse_path, ParseError, PathSegment};
 
 pub use value::format::{
