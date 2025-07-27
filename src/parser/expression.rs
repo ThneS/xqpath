@@ -522,10 +522,7 @@ impl AdvancedBuiltinFunction for GroupByFunction {
                             .unwrap_or_else(|_| "unknown".to_string()),
                     };
 
-                    groups
-                        .entry(key_str)
-                        .or_default()
-                        .push(item.clone());
+                    groups.entry(key_str).or_default().push(item.clone());
                 }
 
                 // 转换为分组数组

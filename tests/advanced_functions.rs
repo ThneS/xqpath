@@ -2,7 +2,6 @@ use serde_json::json;
 use xqpath::{evaluate_path_expression, parse_path_expression, PathExpression};
 
 #[allow(clippy::uninlined_format_args)]
-
 #[test]
 fn test_map_function() {
     let data = json!([1, 2, 3, 4, 5]);
