@@ -6,7 +6,7 @@ authors = ["Thne"]
 description = "A minimal jq-like path extractor and updater for structured data in Rust"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ThneS/xqpath"
-keywords = ["json", "yaml", "toml", "csv", "path", "query", "jq"]
+keywords = ["json", "yaml", "path", "query", "jq"]
 categories = ["command-line-utilities", "parsing"]
 
 [[bin]]
