@@ -1,16 +1,16 @@
 [package]
-name = "datapath"
+name = "xqpath"
 version = "0.1.0"
 edition = "2021"
 authors = ["Thne"]
 description = "A minimal jq-like path extractor and updater for structured data in Rust"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/Thneonl/datapath"
-keywords = ["json", "yaml", "path", "query", "jq"]
+repository = "https://github.com/ThneS/xqpath"
+keywords = ["json", "yaml", "toml", "csv", "path", "query", "jq"]
 categories = ["command-line-utilities", "parsing"]
 
 [[bin]]
-name = "datapath"
+name = "xqpath"
 path = "src/cli.rs"
 
 [dependencies]

@@ -1,12 +1,12 @@
-use datapath::{
-    detect_format, extract, parse_path, JsonFormat, ValueFormat, YamlFormat,
-};
 use std::env;
 use std::fs;
 use std::io::{self, Read};
+use xqpath::{
+    detect_format, extract, parse_path, JsonFormat, ValueFormat, YamlFormat,
+};
 
 #[cfg(feature = "update")]
-use datapath::update;
+use xqpath::update;
 
 /// CLI 错误类型
 #[derive(Debug)]
@@ -90,10 +90,10 @@ fn main() {
             Ok(())
         }
         Command::Version => {
-            println!("datapath {}", datapath::VERSION);
+            println!("xqpath {}", xqpath::VERSION);
             println!(
                 "Features: {}",
-                if datapath::has_update_feature() {
+                if xqpath::has_update_feature() {
                     "update"
                 } else {
                     "basic"
@@ -513,7 +513,5 @@ fn print_usage() {
         "    | type       Type filter (string, number, boolean, array, object)"
     );
     println!();
-    println!(
-        "For more information, visit: https://github.com/Thneonl/datapath"
-    );
+    println!("For more information, visit: https://github.com/ThneS/xqpath");
 }

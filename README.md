@@ -1,4 +1,4 @@
-# DataPath
+# XQPath
 
 > A minimal jq-like path extractor and updater for structured data in Rust
 
@@ -7,12 +7,12 @@
 
 ## 🎯 项目概述
 
-DataPath 是一个用于结构化数据（JSON/YAML）路径提取与更新的高性能 Rust 工具，提供：
+XQPath 是一个用于结构化数据（JSON/YAML/TOML/CSV）路径提取与更新的高性能 Rust 工具，提供：
 
 ### 🧩 双重形态
 
-- **命令行工具**：`datapath` CLI - 快速处理文件和管道数据
-- **集成库**：`datapath` crate - 嵌入到 Rust 项目中
+- **命令行工具**：`xqpath` CLI - 快速处理文件和管道数据
+- **集成库**：`xqpath` crate - 嵌入到 Rust 项目中
 
 ### ✨ 核心特性
 
@@ -30,7 +30,7 @@ DataPath 是一个用于结构化数据（JSON/YAML）路径提取与更新的�
 ## 📦 项目架构
 
 ```
-datapath/
+xqpath/
 ├── Cargo.toml          # 项目配置
 ├── src/
 │   ├── lib.rs          # 库入口，导出所有公共 API
@@ -135,10 +135,10 @@ update = []  # 启用字段更新功能
 
 ```bash
 # 提取字段
-datapath get -f input.yaml -p 'spec.template.spec.containers[0].image'
+xqpath get -f input.yaml -p 'spec.template.spec.containers[0].image'
 
 # 更新字段（需编译时启用 --features update）
-datapath set -f input.yaml -p 'a.b[2].c' -v '"new_value"' > updated.yaml
+xqpath set -f input.yaml -p 'a.b[2].c' -v '"new_value"' > updated.yaml
 ```
 
 ### 参数说明
@@ -168,16 +168,16 @@ spec:
 
 ```bash
 # 提取单个值
-$ datapath get -f example.yaml -p 'spec.template.spec.containers[0].image'
+$ xqpath get -f example.yaml -p 'spec.template.spec.containers[0].image'
 "nginx:1.25"
 
 # 使用通配符提取多个值
-$ datapath get -f example.yaml -p 'spec.template.spec.containers[*].image'
+$ xqpath get -f example.yaml -p 'spec.template.spec.containers[*].image'
 "nginx:1.25"
 "redis:7.0"
 
 # 递归查找所有 image 字段
-$ datapath get -f example.yaml -p '**.image'
+$ xqpath get -f example.yaml -p '**.image'
 "nginx:1.25"
 "redis:7.0"
 ```
@@ -188,7 +188,7 @@ $ datapath get -f example.yaml -p '**.image'
 
 ```rust
 // 示例：注册 TOML 格式支持
-datapath.register_format("toml", TomlFormat::new());
+xqpath.register_format("toml", TomlFormat::new());
 ```
 
 ## 🧪 测试策略
@@ -217,7 +217,7 @@ cargo test --features update
 
 ## 🔍 格式自动检测
 
-为了提供更好的用户体验，DataPath 实现了智能格式检测：
+为了提供更好的用户体验，XQPath 实现了智能格式检测：
 
 ```rust
 fn detect_format(input: &str) -> Result<Box<dyn ValueFormat>> {
@@ -259,9 +259,9 @@ pub use updater::update;
 
 ```toml
 [dependencies]
-datapath = "0.1.0"
+xqpath = "0.1.0"
 # 如需更新功能
-datapath = { version = "0.1.0", features = ["update"] }
+xqpath = { version = "0.1.0", features = ["update"] }
 ```
 
 ### 编译 CLI 工具
@@ -291,8 +291,8 @@ cargo build --release --features update
 - [jq 官方文档](https://stedolan.github.io/jq/) - 路径语法参考
 - [serde 文档](https://serde.rs/) - Rust 序列化框架
 - [winnow 文档](https://docs.rs/winnow/) - 解析器组合子
-- [项目仓库](https://github.com/Thneonl/datapath) - GitHub 源码仓库
+- [项目仓库](https://github.com/ThneS/xqpath) - GitHub 源码仓库
 
 ---
 
-> **设计理念**: DataPath 致力于提供简单、高效、可扩展的结构化数据处理体验，无论是在命令行环境还是 Rust 应用程序中。
+> **设计理念**: XQPath 致力于提供简单、高效、可扩展的结构化数据处理体验，无论是在命令行环境还是 Rust 应用程序中。

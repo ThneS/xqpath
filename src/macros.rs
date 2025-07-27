@@ -9,7 +9,7 @@
 ///
 /// # 示例
 /// ```rust
-/// use datapath::datapath_get;
+/// use xqpath::datapath_get;
 /// use serde_json::json;
 ///
 /// let yaml = r#"
@@ -58,7 +58,7 @@ macro_rules! datapath_get {
 /// # 示例
 /// ```rust
 /// #[cfg(feature = "update")]
-/// use datapath::datapath_set;
+/// use xqpath::datapath_set;
 /// use serde_json::json;
 ///
 /// #[cfg(feature = "update")]
@@ -102,7 +102,7 @@ macro_rules! datapath_set {
 ///
 /// # 示例
 /// ```rust
-/// use datapath::datapath_exists;
+/// use xqpath::datapath_exists;
 ///
 /// let json = r#"{"user": {"name": "Alice"}}"#;
 /// let exists = datapath_exists!(json, "user.name").unwrap();
@@ -139,7 +139,7 @@ macro_rules! datapath_exists {
 ///
 /// # 示例
 /// ```rust
-/// use datapath::datapath_type;
+/// use xqpath::datapath_type;
 ///
 /// let json = r#"{"name": "Alice", "age": 30, "active": true}"#;
 /// let types = datapath_type!(json, "*").unwrap();
@@ -180,7 +180,7 @@ macro_rules! datapath_type {
 ///
 /// # 示例
 /// ```rust
-/// use datapath::datapath_count;
+/// use xqpath::datapath_count;
 ///
 /// let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
 /// let count = datapath_count!(json, "users[*]").unwrap();
@@ -215,7 +215,7 @@ macro_rules! datapath_count {
 ///
 /// # 示例
 /// ```rust
-/// use datapath::datapath_extract;
+/// use xqpath::datapath_extract;
 ///
 /// let yaml = r#"
 /// user:

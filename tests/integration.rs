@@ -1,8 +1,8 @@
-use datapath::{datapath_count, datapath_exists, datapath_get, datapath_type};
 use serde_json::json;
+use xqpath::{datapath_count, datapath_exists, datapath_get, datapath_type};
 
 #[cfg(feature = "update")]
-use datapath::datapath_set;
+use xqpath::datapath_set;
 
 /// 测试基本的路径提取功能
 #[test]

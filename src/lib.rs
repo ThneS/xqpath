@@ -1,13 +1,13 @@
-//! # DataPath
+//! # XQPath
 //!
-//! 一个用于结构化数据（JSON/YAML）路径提取与更新的高性能 Rust 工具库。
+//! 一个用于结构化数据（JSON/YAML/TOML/CSV）路径提取与更新的高性能 Rust 工具库。
 //!
 //! ## 快速开始
 //!
 //! ### 基本使用
 //!
 //! ```rust
-//! use datapath::{datapath_get, datapath_exists};
+//! use xqpath::{datapath_get, datapath_exists};
 //! use serde_json::json;
 //!
 //! let yaml = r#"
@@ -30,7 +30,7 @@
 //!
 //! ```rust
 //! #[cfg(feature = "update")]
-//! use datapath::datapath_set;
+//! use xqpath::datapath_set;
 //! use serde_json::json;
 //!
 //! #[cfg(feature = "update")]
