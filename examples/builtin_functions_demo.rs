@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. length 函数演示
     println!("1. length 函数 - 获取长度:");
-    
+
     // 获取员工数量
     let expr = parse_path_expression(".company.employees | length()")?;
     let result = evaluate_path_expression(&expr, &data)?;
@@ -37,13 +37,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   公司名称长度: {:?}", result);
 
     // 获取第一个员工的技能数量
-    let expr = parse_path_expression(".company.employees[0].skills | length()")?;
+    let expr =
+        parse_path_expression(".company.employees[0].skills | length()")?;
     let result = evaluate_path_expression(&expr, &data)?;
     println!("   Alice 的技能数量: {:?}\n", result);
 
     // 2. type 函数演示
     println!("2. type 函数 - 获取类型:");
-    
+
     let expr = parse_path_expression(".company.name | type()")?;
     let result = evaluate_path_expression(&expr, &data)?;
     println!("   公司名称类型: {:?}", result);
@@ -62,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. keys 函数演示
     println!("3. keys 函数 - 获取键名:");
-    
+
     let expr = parse_path_expression(".company | keys()")?;
     let result = evaluate_path_expression(&expr, &data)?;
     println!("   公司对象的键: {:?}", result);
@@ -73,28 +74,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. values 函数演示
     println!("4. values 函数 - 获取所有值:");
-    
-    let simple_config = json!({"debug": true, "port": 8080, "host": "localhost"});
+
+    let simple_config =
+        json!({"debug": true, "port": 8080, "host": "localhost"});
     let expr = parse_path_expression(". | values()")?;
     let result = evaluate_path_expression(&expr, &simple_config)?;
     println!("   配置对象的所有值: {:?}\n", result);
 
     // 5. 复杂表达式组合
     println!("5. 复杂表达式组合:");
-    
+
     // 获取所有员工姓名的总长度
     let expr = parse_path_expression(".company.employees[*].name | length()")?;
     let result = evaluate_path_expression(&expr, &data)?;
     println!("   所有员工姓名长度: {:?}", result);
 
     // 使用管道和函数的组合表达式
-    let expr = parse_path_expression("(.company | keys() | length()), (.company.employees | length())")?;
+    let expr = parse_path_expression(
+        "(.company | keys() | length()), (.company.employees | length())",
+    )?;
     let result = evaluate_path_expression(&expr, &data)?;
     println!("   公司字段数和员工数: {:?}\n", result);
 
     // 6. 错误处理演示
     println!("6. 错误处理演示:");
-    
+
     // 未知函数
     let expr = parse_path_expression("unknown_function()")?;
     match evaluate_path_expression(&expr, &data) {

@@ -15,7 +15,11 @@ pub trait BuiltinFunction: Send + Sync {
     fn name(&self) -> &str;
 
     /// 执行函数
-    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError>;
+    fn execute(
+        &self,
+        args: &[Value],
+        input: &Value,
+    ) -> Result<Vec<Value>, EvaluationError>;
 
     /// 函数描述
     fn description(&self) -> &str {
@@ -66,14 +70,18 @@ impl BuiltinFunction for LengthFunction {
     fn name(&self) -> &str {
         "length"
     }
-    
-    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+
+    fn execute(
+        &self,
+        args: &[Value],
+        input: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         if !args.is_empty() {
             return Err(EvaluationError::InvalidArguments(
-                "length function takes no arguments".to_string()
+                "length function takes no arguments".to_string(),
             ));
         }
-        
+
         let length = match input {
             Value::Array(arr) => arr.len(),
             Value::Object(obj) => obj.len(),
@@ -83,10 +91,10 @@ impl BuiltinFunction for LengthFunction {
                 "length can only be applied to arrays, objects, strings, or null".to_string()
             )),
         };
-        
+
         Ok(vec![Value::Number(length.into())])
     }
-    
+
     fn description(&self) -> &str {
         "Returns the length of arrays, objects, strings, or 0 for null"
     }
@@ -99,14 +107,18 @@ impl BuiltinFunction for TypeFunction {
     fn name(&self) -> &str {
         "type"
     }
-    
-    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+
+    fn execute(
+        &self,
+        args: &[Value],
+        input: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         if !args.is_empty() {
             return Err(EvaluationError::InvalidArguments(
-                "type function takes no arguments".to_string()
+                "type function takes no arguments".to_string(),
             ));
         }
-        
+
         let type_name = match input {
             Value::Null => "null",
             Value::Bool(_) => "boolean",
@@ -115,10 +127,10 @@ impl BuiltinFunction for TypeFunction {
             Value::Array(_) => "array",
             Value::Object(_) => "object",
         };
-        
+
         Ok(vec![Value::String(type_name.to_string())])
     }
-    
+
     fn description(&self) -> &str {
         "Returns the type of the input value"
     }
@@ -131,31 +143,37 @@ impl BuiltinFunction for KeysFunction {
     fn name(&self) -> &str {
         "keys"
     }
-    
-    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+
+    fn execute(
+        &self,
+        args: &[Value],
+        input: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         if !args.is_empty() {
             return Err(EvaluationError::InvalidArguments(
-                "keys function takes no arguments".to_string()
+                "keys function takes no arguments".to_string(),
             ));
         }
-        
+
         match input {
             Value::Object(obj) => {
                 let mut keys: Vec<String> = obj.keys().cloned().collect();
                 keys.sort();
-                let key_values: Vec<Value> = keys.into_iter().map(Value::String).collect();
+                let key_values: Vec<Value> =
+                    keys.into_iter().map(Value::String).collect();
                 Ok(vec![Value::Array(key_values)])
             }
             Value::Array(arr) => {
-                let indices: Vec<Value> = (0..arr.len()).map(|i| Value::Number(i.into())).collect();
+                let indices: Vec<Value> =
+                    (0..arr.len()).map(|i| Value::Number(i.into())).collect();
                 Ok(vec![Value::Array(indices)])
             }
             _ => Err(EvaluationError::InvalidArguments(
-                "keys can only be applied to objects or arrays".to_string()
+                "keys can only be applied to objects or arrays".to_string(),
             )),
         }
     }
-    
+
     fn description(&self) -> &str {
         "Returns sorted keys of an object or indices of an array"
     }
@@ -168,28 +186,30 @@ impl BuiltinFunction for ValuesFunction {
     fn name(&self) -> &str {
         "values"
     }
-    
-    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+
+    fn execute(
+        &self,
+        args: &[Value],
+        input: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         if !args.is_empty() {
             return Err(EvaluationError::InvalidArguments(
-                "values function takes no arguments".to_string()
+                "values function takes no arguments".to_string(),
             ));
         }
-        
+
         match input {
             Value::Object(obj) => {
                 let values: Vec<Value> = obj.values().cloned().collect();
                 Ok(vec![Value::Array(values)])
             }
-            Value::Array(arr) => {
-                Ok(vec![Value::Array(arr.clone())])
-            }
+            Value::Array(arr) => Ok(vec![Value::Array(arr.clone())]),
             _ => Err(EvaluationError::InvalidArguments(
-                "values can only be applied to objects or arrays".to_string()
+                "values can only be applied to objects or arrays".to_string(),
             )),
         }
     }
-    
+
     fn description(&self) -> &str {
         "Returns all values of an object or array"
     }
@@ -292,7 +312,8 @@ impl PathExpression {
                 if args.is_empty() {
                     name.clone()
                 } else {
-                    let arg_strings: Vec<String> = args.iter().map(|arg| format!("{arg}")).collect();
+                    let arg_strings: Vec<String> =
+                        args.iter().map(|arg| format!("{arg}")).collect();
                     format!("{}({})", name, arg_strings.join(", "))
                 }
             }
@@ -414,12 +435,14 @@ impl PathExpression {
                 let mut has_recursive_wildcards = false;
 
                 for arg in args {
-                    let complexity = arg.analyze_complexity_with_depth(current_depth + 1);
+                    let complexity =
+                        arg.analyze_complexity_with_depth(current_depth + 1);
                     max_depth = max_depth.max(complexity.depth);
                     total_pipe_count += complexity.pipe_count;
                     total_branches *= complexity.comma_branches;
                     has_wildcards = has_wildcards || complexity.has_wildcards;
-                    has_recursive_wildcards = has_recursive_wildcards || complexity.has_recursive_wildcards;
+                    has_recursive_wildcards = has_recursive_wildcards
+                        || complexity.has_recursive_wildcards;
                 }
 
                 ExpressionComplexity {
@@ -548,12 +571,15 @@ impl ExpressionParser {
     /// 解析函数调用
     fn parse_function_call(input: &mut &str) -> PResult<PathExpression> {
         // 函数名（字母开头，后跟字母数字或下划线）
-        let function_name = (alpha1, take_while(0.., |c: char| c.is_alphanumeric() || c == '_'))
+        let function_name = (
+            alpha1,
+            take_while(0.., |c: char| c.is_alphanumeric() || c == '_'),
+        )
             .recognize()
             .parse_next(input)?;
-        
+
         let _ = Self::skip_whitespace.parse_next(input);
-        
+
         // 检查是否有左括号
         if !input.starts_with('(') {
             // 如果没有括号，可能是无参数函数，但这里先要求必须有括号
@@ -564,19 +590,19 @@ impl ExpressionParser {
                 ),
             ));
         }
-        
+
         '('.parse_next(input)?;
         let _ = Self::skip_whitespace.parse_next(input);
-        
+
         // 解析参数列表
         let mut args = Vec::new();
-        
+
         // 检查是否是空参数列表
         if !input.starts_with(')') {
             // 解析第一个参数
             args.push(Self::parse_comma_expression.parse_next(input)?);
             let _ = Self::skip_whitespace.parse_next(input);
-            
+
             // 解析后续参数
             while input.starts_with(',') {
                 ','.parse_next(input)?;
@@ -585,9 +611,9 @@ impl ExpressionParser {
                 let _ = Self::skip_whitespace.parse_next(input);
             }
         }
-        
+
         ')'.parse_next(input)?;
-        
+
         Ok(PathExpression::FunctionCall {
             name: function_name.to_string(),
             args,
@@ -1051,6 +1077,12 @@ pub struct ExpressionEvaluator {
     function_registry: FunctionRegistry,
 }
 
+impl Default for ExpressionEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExpressionEvaluator {
     /// 创建新的求值器
     pub fn new() -> Self {
@@ -1108,8 +1140,10 @@ impl ExpressionEvaluator {
 
             PathExpression::FunctionCall { name, args } => {
                 // 函数调用
-                let function = self.function_registry.get(name)
-                    .ok_or_else(|| EvaluationError::UnknownFunction(name.clone()))?;
+                let function =
+                    self.function_registry.get(name).ok_or_else(|| {
+                        EvaluationError::UnknownFunction(name.clone())
+                    })?;
 
                 // 评估函数参数
                 let mut evaluated_args = Vec::new();
@@ -1264,9 +1298,15 @@ impl EvaluationError {
 impl std::fmt::Display for EvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EvaluationError::Message(msg) => write!(f, "Evaluation error: {}", msg),
-            EvaluationError::InvalidArguments(msg) => write!(f, "Invalid arguments: {}", msg),
-            EvaluationError::UnknownFunction(name) => write!(f, "Unknown function: {}", name),
+            EvaluationError::Message(msg) => {
+                write!(f, "Evaluation error: {msg}")
+            }
+            EvaluationError::InvalidArguments(msg) => {
+                write!(f, "Invalid arguments: {msg}")
+            }
+            EvaluationError::UnknownFunction(name) => {
+                write!(f, "Unknown function: {name}")
+            }
         }
     }
 }

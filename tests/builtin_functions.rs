@@ -1,5 +1,5 @@
-use xqpath::{parse_path_expression, evaluate_path_expression, PathExpression};
 use serde_json::json;
+use xqpath::{evaluate_path_expression, parse_path_expression, PathExpression};
 
 #[test]
 fn test_builtin_functions() {
@@ -69,7 +69,7 @@ fn test_function_call_parsing() {
 
     // 测试管道中的函数调用
     let expr = parse_path_expression(".users | length()").unwrap();
-    if let PathExpression::Pipe { left, right } = expr {
+    if let PathExpression::Pipe { left: _, right } = expr {
         if let PathExpression::FunctionCall { name, args } = *right {
             assert_eq!(name, "length");
             assert_eq!(args.len(), 0);
