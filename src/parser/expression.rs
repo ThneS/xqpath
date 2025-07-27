@@ -1,5 +1,6 @@
 use crate::parser::path::{ParseError, ParseResult, PathSegment};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt;
 use winnow::{
     ascii::{alpha1, digit1},
@@ -8,6 +9,191 @@ use winnow::{
     PResult, Parser,
 };
 
+/// 内置函数 trait
+pub trait BuiltinFunction: Send + Sync {
+    /// 函数名称
+    fn name(&self) -> &str;
+
+    /// 执行函数
+    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError>;
+
+    /// 函数描述
+    fn description(&self) -> &str {
+        "No description available"
+    }
+}
+
+/// 函数注册表
+#[derive(Default)]
+pub struct FunctionRegistry {
+    functions: HashMap<String, Box<dyn BuiltinFunction>>,
+}
+
+impl FunctionRegistry {
+    /// 创建新的函数注册表
+    pub fn new() -> Self {
+        let mut registry = Self::default();
+        registry.register_builtin_functions();
+        registry
+    }
+
+    /// 注册函数
+    pub fn register(&mut self, function: Box<dyn BuiltinFunction>) {
+        self.functions.insert(function.name().to_string(), function);
+    }
+
+    /// 获取函数
+    pub fn get(&self, name: &str) -> Option<&dyn BuiltinFunction> {
+        self.functions.get(name).map(|f| f.as_ref())
+    }
+
+    /// 注册内置函数
+    fn register_builtin_functions(&mut self) {
+        // Phase 1: 基础函数
+        self.register(Box::new(LengthFunction));
+        self.register(Box::new(TypeFunction));
+        self.register(Box::new(KeysFunction));
+        self.register(Box::new(ValuesFunction));
+    }
+}
+
+// 基础内置函数实现
+
+/// length 函数 - 获取数组/对象/字符串长度
+struct LengthFunction;
+
+impl BuiltinFunction for LengthFunction {
+    fn name(&self) -> &str {
+        "length"
+    }
+    
+    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+        if !args.is_empty() {
+            return Err(EvaluationError::InvalidArguments(
+                "length function takes no arguments".to_string()
+            ));
+        }
+        
+        let length = match input {
+            Value::Array(arr) => arr.len(),
+            Value::Object(obj) => obj.len(),
+            Value::String(s) => s.chars().count(),
+            Value::Null => 0,
+            _ => return Err(EvaluationError::InvalidArguments(
+                "length can only be applied to arrays, objects, strings, or null".to_string()
+            )),
+        };
+        
+        Ok(vec![Value::Number(length.into())])
+    }
+    
+    fn description(&self) -> &str {
+        "Returns the length of arrays, objects, strings, or 0 for null"
+    }
+}
+
+/// type 函数 - 获取值类型
+struct TypeFunction;
+
+impl BuiltinFunction for TypeFunction {
+    fn name(&self) -> &str {
+        "type"
+    }
+    
+    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+        if !args.is_empty() {
+            return Err(EvaluationError::InvalidArguments(
+                "type function takes no arguments".to_string()
+            ));
+        }
+        
+        let type_name = match input {
+            Value::Null => "null",
+            Value::Bool(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
+        };
+        
+        Ok(vec![Value::String(type_name.to_string())])
+    }
+    
+    fn description(&self) -> &str {
+        "Returns the type of the input value"
+    }
+}
+
+/// keys 函数 - 获取对象键名或数组索引
+struct KeysFunction;
+
+impl BuiltinFunction for KeysFunction {
+    fn name(&self) -> &str {
+        "keys"
+    }
+    
+    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+        if !args.is_empty() {
+            return Err(EvaluationError::InvalidArguments(
+                "keys function takes no arguments".to_string()
+            ));
+        }
+        
+        match input {
+            Value::Object(obj) => {
+                let mut keys: Vec<String> = obj.keys().cloned().collect();
+                keys.sort();
+                let key_values: Vec<Value> = keys.into_iter().map(Value::String).collect();
+                Ok(vec![Value::Array(key_values)])
+            }
+            Value::Array(arr) => {
+                let indices: Vec<Value> = (0..arr.len()).map(|i| Value::Number(i.into())).collect();
+                Ok(vec![Value::Array(indices)])
+            }
+            _ => Err(EvaluationError::InvalidArguments(
+                "keys can only be applied to objects or arrays".to_string()
+            )),
+        }
+    }
+    
+    fn description(&self) -> &str {
+        "Returns sorted keys of an object or indices of an array"
+    }
+}
+
+/// values 函数 - 获取对象所有值
+struct ValuesFunction;
+
+impl BuiltinFunction for ValuesFunction {
+    fn name(&self) -> &str {
+        "values"
+    }
+    
+    fn execute(&self, args: &[Value], input: &Value) -> Result<Vec<Value>, EvaluationError> {
+        if !args.is_empty() {
+            return Err(EvaluationError::InvalidArguments(
+                "values function takes no arguments".to_string()
+            ));
+        }
+        
+        match input {
+            Value::Object(obj) => {
+                let values: Vec<Value> = obj.values().cloned().collect();
+                Ok(vec![Value::Array(values)])
+            }
+            Value::Array(arr) => {
+                Ok(vec![Value::Array(arr.clone())])
+            }
+            _ => Err(EvaluationError::InvalidArguments(
+                "values can only be applied to objects or arrays".to_string()
+            )),
+        }
+    }
+    
+    fn description(&self) -> &str {
+        "Returns all values of an object or array"
+    }
+}
 /// 路径表达式抽象语法树
 #[derive(Debug, Clone, PartialEq)]
 pub enum PathExpression {
@@ -28,6 +214,12 @@ pub enum PathExpression {
 
     /// 恒等表达式 "."
     Identity,
+
+    /// 函数调用: function_name(arg1, arg2, ...)
+    FunctionCall {
+        name: String,
+        args: Vec<PathExpression>,
+    },
 }
 
 impl PathExpression {
@@ -95,6 +287,15 @@ impl PathExpression {
                 .unwrap_or_else(|_| "null".to_string()),
 
             PathExpression::Identity => ".".to_string(),
+
+            PathExpression::FunctionCall { name, args } => {
+                if args.is_empty() {
+                    name.clone()
+                } else {
+                    let arg_strings: Vec<String> = args.iter().map(|arg| format!("{arg}")).collect();
+                    format!("{}({})", name, arg_strings.join(", "))
+                }
+            }
         }
     }
 }
@@ -204,6 +405,31 @@ impl PathExpression {
                     has_recursive_wildcards: false,
                 }
             }
+
+            PathExpression::FunctionCall { args, .. } => {
+                let mut max_depth = current_depth + 1;
+                let mut total_pipe_count = 0;
+                let mut total_branches = 1;
+                let mut has_wildcards = false;
+                let mut has_recursive_wildcards = false;
+
+                for arg in args {
+                    let complexity = arg.analyze_complexity_with_depth(current_depth + 1);
+                    max_depth = max_depth.max(complexity.depth);
+                    total_pipe_count += complexity.pipe_count;
+                    total_branches *= complexity.comma_branches;
+                    has_wildcards = has_wildcards || complexity.has_wildcards;
+                    has_recursive_wildcards = has_recursive_wildcards || complexity.has_recursive_wildcards;
+                }
+
+                ExpressionComplexity {
+                    depth: max_depth,
+                    pipe_count: total_pipe_count,
+                    comma_branches: total_branches,
+                    has_wildcards,
+                    has_recursive_wildcards,
+                }
+            }
         }
     }
 
@@ -290,6 +516,7 @@ impl ExpressionParser {
         alt((
             Self::parse_literal,
             Self::parse_parenthesized,
+            Self::parse_function_call,
             Self::parse_path_or_identity,
         ))
         .parse_next(input)
@@ -316,6 +543,55 @@ impl ExpressionParser {
         } else {
             Ok(PathExpression::Segments(segments))
         }
+    }
+
+    /// 解析函数调用
+    fn parse_function_call(input: &mut &str) -> PResult<PathExpression> {
+        // 函数名（字母开头，后跟字母数字或下划线）
+        let function_name = (alpha1, take_while(0.., |c: char| c.is_alphanumeric() || c == '_'))
+            .recognize()
+            .parse_next(input)?;
+        
+        let _ = Self::skip_whitespace.parse_next(input);
+        
+        // 检查是否有左括号
+        if !input.starts_with('(') {
+            // 如果没有括号，可能是无参数函数，但这里先要求必须有括号
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ParserError::from_error_kind(
+                    input,
+                    winnow::error::ErrorKind::Verify,
+                ),
+            ));
+        }
+        
+        '('.parse_next(input)?;
+        let _ = Self::skip_whitespace.parse_next(input);
+        
+        // 解析参数列表
+        let mut args = Vec::new();
+        
+        // 检查是否是空参数列表
+        if !input.starts_with(')') {
+            // 解析第一个参数
+            args.push(Self::parse_comma_expression.parse_next(input)?);
+            let _ = Self::skip_whitespace.parse_next(input);
+            
+            // 解析后续参数
+            while input.starts_with(',') {
+                ','.parse_next(input)?;
+                let _ = Self::skip_whitespace.parse_next(input);
+                args.push(Self::parse_comma_expression.parse_next(input)?);
+                let _ = Self::skip_whitespace.parse_next(input);
+            }
+        }
+        
+        ')'.parse_next(input)?;
+        
+        Ok(PathExpression::FunctionCall {
+            name: function_name.to_string(),
+            args,
+        })
     }
 
     /// 解析字面量值
@@ -771,11 +1047,21 @@ mod parser_tests {
 }
 
 /// 表达式求值器
-pub struct ExpressionEvaluator;
+pub struct ExpressionEvaluator {
+    function_registry: FunctionRegistry,
+}
 
 impl ExpressionEvaluator {
+    /// 创建新的求值器
+    pub fn new() -> Self {
+        Self {
+            function_registry: FunctionRegistry::new(),
+        }
+    }
+
     /// 对给定值评估路径表达式
     pub fn evaluate(
+        &self,
         expression: &PathExpression,
         value: &Value,
     ) -> Result<Vec<Value>, EvaluationError> {
@@ -787,11 +1073,11 @@ impl ExpressionEvaluator {
 
             PathExpression::Pipe { left, right } => {
                 // 管道操作：将左表达式的结果作为右表达式的输入
-                let left_results = Self::evaluate(left, value)?;
+                let left_results = self.evaluate(left, value)?;
                 let mut final_results = Vec::new();
 
                 for left_result in left_results {
-                    let right_results = Self::evaluate(right, &left_result)?;
+                    let right_results = self.evaluate(right, &left_result)?;
                     final_results.extend(right_results);
                 }
 
@@ -803,7 +1089,7 @@ impl ExpressionEvaluator {
                 let mut all_results = Vec::new();
 
                 for expr in expressions {
-                    let results = Self::evaluate(expr, value)?;
+                    let results = self.evaluate(expr, value)?;
                     all_results.extend(results);
                 }
 
@@ -818,6 +1104,25 @@ impl ExpressionEvaluator {
             PathExpression::Identity => {
                 // 恒等表达式返回输入值
                 Ok(vec![value.clone()])
+            }
+
+            PathExpression::FunctionCall { name, args } => {
+                // 函数调用
+                let function = self.function_registry.get(name)
+                    .ok_or_else(|| EvaluationError::UnknownFunction(name.clone()))?;
+
+                // 评估函数参数
+                let mut evaluated_args = Vec::new();
+                for arg in args {
+                    let arg_results = self.evaluate(arg, value)?;
+                    // 对于函数参数，我们通常只取第一个结果
+                    // 更复杂的函数可能需要处理多个结果
+                    if let Some(first_result) = arg_results.first() {
+                        evaluated_args.push(first_result.clone());
+                    }
+                }
+
+                function.execute(&evaluated_args, value)
             }
         }
     }
@@ -940,13 +1245,29 @@ impl ExpressionEvaluator {
 
 /// 求值错误类型
 #[derive(Debug, Clone)]
-pub struct EvaluationError {
-    pub message: String,
+pub enum EvaluationError {
+    /// 一般性错误消息
+    Message(String),
+    /// 无效参数错误
+    InvalidArguments(String),
+    /// 未知函数错误
+    UnknownFunction(String),
+}
+
+impl EvaluationError {
+    /// 创建一般性错误
+    pub fn new(message: String) -> Self {
+        Self::Message(message)
+    }
 }
 
 impl std::fmt::Display for EvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Evaluation error: {}", self.message)
+        match self {
+            EvaluationError::Message(msg) => write!(f, "Evaluation error: {}", msg),
+            EvaluationError::InvalidArguments(msg) => write!(f, "Invalid arguments: {}", msg),
+            EvaluationError::UnknownFunction(name) => write!(f, "Unknown function: {}", name),
+        }
     }
 }
 
@@ -957,7 +1278,8 @@ pub fn evaluate_path_expression(
     expression: &PathExpression,
     value: &Value,
 ) -> Result<Vec<Value>, EvaluationError> {
-    ExpressionEvaluator::evaluate(expression, value)
+    let evaluator = ExpressionEvaluator::new();
+    evaluator.evaluate(expression, value)
 }
 
 #[cfg(test)]
