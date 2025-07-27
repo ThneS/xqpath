@@ -128,6 +128,7 @@ try expr catch fallback
 - [x] 综合测试
 
 **Phase 2 成果:**
+
 - ✅ 支持比较操作符: `==`, `!=`, `<`, `<=`, `>`, `>=`
 - ✅ 支持逻辑操作符: `and`, `or`, `not`
 - ✅ 支持条件表达式: `if condition then expr1 else expr2 end`
@@ -135,20 +136,31 @@ try expr catch fallback
 - ✅ 与现有管道和内置函数无缝集成
 - ✅ 全面的测试覆盖和演示程序
 
-### Phase 3: 高级函数实现 (2-3 周)
+### Phase 3: 高级函数实现 ✅ **已完成**
 
 #### 3.1 数组操作函数
 
-- [ ] `map` 函数（核心）
-- [ ] `select` 函数
-- [ ] `sort` / `sort_by` 函数
-- [ ] `group_by` 函数
+- [x] `map` 函数（核心）
+- [x] `select` 函数
+- [x] `sort` / `sort_by` 函数
+- [x] `group_by` 函数
 
 #### 3.2 转换函数
 
+- [x] `unique` / `unique_by` 函数
+- [x] `reverse` 函数
 - [ ] `to_entries` / `from_entries`
 - [ ] `flatten` 函数
 - [ ] `add` 函数
+
+**Phase 3 成果:**
+
+- ✅ 实现了 8 个高级内置函数: `map`, `select`, `sort`, `sort_by`, `group_by`, `unique`, `unique_by`, `reverse`
+- ✅ 扩展了函数系统架构，支持表达式参数（AdvancedBuiltinFunction trait）
+- ✅ 完整的函数注册表和求值器集成
+- ✅ 与现有管道、条件表达式、比较操作符完美集成
+- ✅ 支持复杂的函数组合操作
+- ✅ 全面的测试覆盖和演示程序
 
 ### Phase 4: 错误处理和优化 (1 周)
 
