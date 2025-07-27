@@ -766,6 +766,15 @@ pub enum PathExpression {
         op: LogicalOp,
         operands: Vec<PathExpression>,
     },
+
+    /// try-catch 表达式: try expr catch handler
+    TryCatch {
+        try_expr: Box<PathExpression>,
+        catch_expr: Option<Box<PathExpression>>,
+    },
+
+    /// 可选操作符: expr?
+    Optional(Box<PathExpression>),
 }
 
 /// 比较操作符
@@ -917,6 +926,19 @@ impl PathExpression {
                     }
                 }
             },
+
+            PathExpression::TryCatch {
+                try_expr,
+                catch_expr,
+            } => {
+                if let Some(catch_expr) = catch_expr {
+                    format!("try {try_expr} catch {catch_expr}")
+                } else {
+                    format!("try {try_expr}")
+                }
+            }
+
+            PathExpression::Optional(expr) => format!("{expr}?"),
         }
     }
 }
@@ -1143,6 +1165,51 @@ impl PathExpression {
                     has_recursive_wildcards,
                 }
             }
+
+            PathExpression::TryCatch {
+                try_expr,
+                catch_expr,
+            } => {
+                let try_complexity =
+                    try_expr.analyze_complexity_with_depth(current_depth + 1);
+                let catch_complexity = if let Some(catch_expr) = catch_expr {
+                    catch_expr.analyze_complexity_with_depth(current_depth + 1)
+                } else {
+                    ExpressionComplexity {
+                        depth: current_depth + 1,
+                        pipe_count: 0,
+                        comma_branches: 1,
+                        has_wildcards: false,
+                        has_recursive_wildcards: false,
+                    }
+                };
+
+                ExpressionComplexity {
+                    depth: try_complexity.depth.max(catch_complexity.depth),
+                    pipe_count: try_complexity.pipe_count
+                        + catch_complexity.pipe_count,
+                    comma_branches: try_complexity.comma_branches
+                        + catch_complexity.comma_branches,
+                    has_wildcards: try_complexity.has_wildcards
+                        || catch_complexity.has_wildcards,
+                    has_recursive_wildcards: try_complexity
+                        .has_recursive_wildcards
+                        || catch_complexity.has_recursive_wildcards,
+                }
+            }
+
+            PathExpression::Optional(expr) => {
+                let inner_complexity =
+                    expr.analyze_complexity_with_depth(current_depth + 1);
+                ExpressionComplexity {
+                    depth: inner_complexity.depth,
+                    pipe_count: inner_complexity.pipe_count,
+                    comma_branches: inner_complexity.comma_branches,
+                    has_wildcards: inner_complexity.has_wildcards,
+                    has_recursive_wildcards: inner_complexity
+                        .has_recursive_wildcards,
+                }
+            }
         }
     }
 
@@ -1210,11 +1277,31 @@ impl ExpressionParser {
         })
     }
 
-    /// 解析条件表达式（if-then-else）
+    /// 解析条件表达式（if-then-else）和 try-catch 表达式
     fn parse_conditional_expression(
         input: &mut &str,
     ) -> PResult<PathExpression> {
         let _ = Self::skip_whitespace.parse_next(input);
+
+        // 尝试解析 try 关键字
+        if Self::try_parse_try.parse_next(input).is_ok() {
+            let try_expr =
+                Self::parse_logical_or_expression.parse_next(input)?;
+
+            let catch_expr = if Self::try_parse_catch.parse_next(input).is_ok()
+            {
+                Some(Box::new(
+                    Self::parse_logical_or_expression.parse_next(input)?,
+                ))
+            } else {
+                None
+            };
+
+            return Ok(PathExpression::TryCatch {
+                try_expr: Box::new(try_expr),
+                catch_expr,
+            });
+        }
 
         // 尝试解析 if 关键字
         if Self::try_parse_if.parse_next(input).is_ok() {
@@ -1342,6 +1429,13 @@ impl ExpressionParser {
             left = PathExpression::pipe(left, right);
         }
 
+        // 检查是否有可选操作符 ? (用于管道表达式后)
+        let _ = Self::skip_whitespace.parse_next(input);
+        if input.starts_with('?') {
+            '?'.parse_next(input)?;
+            left = PathExpression::Optional(Box::new(left));
+        }
+
         Ok(left)
     }
 
@@ -1349,13 +1443,22 @@ impl ExpressionParser {
     fn parse_primary_expression(input: &mut &str) -> PResult<PathExpression> {
         let _ = Self::skip_whitespace.parse_next(input);
 
-        alt((
+        let mut expr = alt((
             Self::parse_literal,
             Self::parse_parenthesized,
             Self::parse_function_call,
             Self::parse_path_or_identity,
         ))
-        .parse_next(input)
+        .parse_next(input)?;
+
+        // 检查是否有可选操作符 ?
+        let _ = Self::skip_whitespace.parse_next(input);
+        if input.starts_with('?') {
+            '?'.parse_next(input)?;
+            expr = PathExpression::Optional(Box::new(expr));
+        }
+
+        Ok(expr)
     }
 
     /// 解析路径或恒等表达式
@@ -1436,10 +1539,101 @@ impl ExpressionParser {
     /// 解析字面量值
     fn parse_literal(input: &mut &str) -> PResult<PathExpression> {
         alt((
+            Self::parse_array_literal,
+            Self::parse_object_literal,
             Self::parse_string_literal,
             Self::parse_number_literal,
             Self::parse_boolean_literal,
             Self::parse_null_literal,
+        ))
+        .parse_next(input)
+    }
+
+    /// 解析数组字面量
+    fn parse_array_literal(input: &mut &str) -> PResult<PathExpression> {
+        let _ = Self::skip_whitespace.parse_next(input);
+        '['.parse_next(input)?;
+        let _ = Self::skip_whitespace.parse_next(input);
+
+        let mut elements = Vec::new();
+
+        // 检查是否是空数组
+        if !input.starts_with(']') {
+            // 解析第一个元素
+            if let Ok(literal) = Self::parse_simple_literal(input) {
+                elements.push(literal);
+                let _ = Self::skip_whitespace.parse_next(input);
+
+                // 解析后续元素
+                while input.starts_with(',') {
+                    ','.parse_next(input)?;
+                    let _ = Self::skip_whitespace.parse_next(input);
+                    let literal = Self::parse_simple_literal(input)?;
+                    elements.push(literal);
+                    let _ = Self::skip_whitespace.parse_next(input);
+                }
+            }
+        }
+
+        ']'.parse_next(input)?;
+        Ok(PathExpression::Literal(Value::Array(elements)))
+    }
+
+    /// 解析对象字面量（简化版本）
+    fn parse_object_literal(input: &mut &str) -> PResult<PathExpression> {
+        let _ = Self::skip_whitespace.parse_next(input);
+        '{'.parse_next(input)?;
+        let _ = Self::skip_whitespace.parse_next(input);
+
+        let mut object = serde_json::Map::new();
+
+        // 检查是否是空对象
+        if !input.starts_with('}') {
+            // 简化实现，只支持字符串键
+            loop {
+                // 解析键
+                let key = delimited('"', take_until(0.., "\""), '"')
+                    .parse_next(input)?;
+                let _ = Self::skip_whitespace.parse_next(input);
+                ':'.parse_next(input)?;
+                let _ = Self::skip_whitespace.parse_next(input);
+
+                // 解析值
+                let value = Self::parse_simple_literal(input)?;
+                object.insert(key.to_string(), value);
+
+                let _ = Self::skip_whitespace.parse_next(input);
+                if input.starts_with(',') {
+                    ','.parse_next(input)?;
+                    let _ = Self::skip_whitespace.parse_next(input);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        '}'.parse_next(input)?;
+        Ok(PathExpression::Literal(Value::Object(object)))
+    }
+
+    /// 解析简单字面量值（用于数组和对象内部）
+    fn parse_simple_literal(input: &mut &str) -> PResult<Value> {
+        let _ = Self::skip_whitespace.parse_next(input);
+        alt((
+            // 字符串
+            delimited('"', take_until(0.., "\""), '"')
+                .map(|s: &str| Value::String(s.to_string())),
+            // 数字
+            digit1
+                .try_map(|s: &str| s.parse::<i64>())
+                .map(|n| Value::Number(serde_json::Number::from(n))),
+            // 布尔值
+            alt((
+                "true".value(Value::Bool(true)),
+                "false".value(Value::Bool(false)),
+            )),
+            // null
+            "null".value(Value::Null),
         ))
         .parse_next(input)
     }
@@ -1639,6 +1833,19 @@ impl ExpressionParser {
 
     fn parse_end(input: &mut &str) -> PResult<()> {
         (Self::skip_whitespace, "end", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    // try-catch 表达式关键字解析器
+    fn try_parse_try(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "try", Self::skip_whitespace)
+            .void()
+            .parse_next(input)
+    }
+
+    fn try_parse_catch(input: &mut &str) -> PResult<()> {
+        (Self::skip_whitespace, "catch", Self::skip_whitespace)
             .void()
             .parse_next(input)
     }
@@ -2142,6 +2349,40 @@ impl ExpressionEvaluator {
                     }
                 }
             }
+
+            PathExpression::TryCatch {
+                try_expr,
+                catch_expr,
+            } => {
+                // try-catch 表达式：尝试执行 try_expr，如果失败则执行 catch_expr
+                match self.evaluate(try_expr, value) {
+                    Ok(results) => Ok(results),
+                    Err(_error) => {
+                        if let Some(catch_expr) = catch_expr {
+                            // 执行 catch 表达式
+                            self.evaluate(catch_expr, value)
+                        } else {
+                            // 如果没有 catch 表达式，返回 null
+                            Ok(vec![Value::Null])
+                        }
+                    }
+                }
+            }
+
+            PathExpression::Optional(expr) => {
+                // 可选操作符：如果表达式执行失败，返回 null 而不是错误
+                match self.evaluate(expr, value) {
+                    Ok(results) => {
+                        // 如果结果为空，返回 null
+                        if results.is_empty() {
+                            Ok(vec![Value::Null])
+                        } else {
+                            Ok(results)
+                        }
+                    }
+                    Err(_) => Ok(vec![Value::Null]),
+                }
+            }
         }
     }
 
@@ -2334,6 +2575,18 @@ pub enum EvaluationError {
     InvalidArguments(String),
     /// 未知函数错误
     UnknownFunction(String),
+    /// 类型错误
+    TypeError { expected: String, actual: String },
+    /// 索引越界错误
+    IndexOutOfBounds { index: i64, length: usize },
+    /// 字段不存在错误
+    FieldNotFound(String),
+    /// 语法错误
+    SyntaxError(String),
+    /// 条件求值错误
+    ConditionError(String),
+    /// try-catch 表达式中的被捕获错误
+    CaughtError(Box<EvaluationError>),
 }
 
 impl EvaluationError {
@@ -2354,6 +2607,24 @@ impl std::fmt::Display for EvaluationError {
             }
             EvaluationError::UnknownFunction(name) => {
                 write!(f, "Unknown function: {name}")
+            }
+            EvaluationError::TypeError { expected, actual } => {
+                write!(f, "Type error: expected {expected}, got {actual}")
+            }
+            EvaluationError::IndexOutOfBounds { index, length } => {
+                write!(f, "Index out of bounds: index {index}, length {length}")
+            }
+            EvaluationError::FieldNotFound(field) => {
+                write!(f, "Field not found: {field}")
+            }
+            EvaluationError::SyntaxError(msg) => {
+                write!(f, "Syntax error: {msg}")
+            }
+            EvaluationError::ConditionError(msg) => {
+                write!(f, "Condition error: {msg}")
+            }
+            EvaluationError::CaughtError(inner) => {
+                write!(f, "Caught error: {inner}")
             }
         }
     }
