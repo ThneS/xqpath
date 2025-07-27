@@ -1,0 +1,25 @@
+# Rust 代码格式化配置文件
+# 用于统一团队的代码风格（仅使用稳定版功能）
+
+# 使用空格而不是制表符
+tab_spaces = 4
+
+# 每行最大长度
+max_width = 80
+
+# 导入语句设置
+reorder_imports = true # 重新排序导入
+reorder_modules = true # 重新排序模块
+
+# 表达式设置
+chain_width = 60          # 链式调用宽度
+fn_call_width = 60        # 函数调用宽度
+struct_variant_width = 35 # 结构体变体宽度
+
+# 其他设置
+edition = "2021"                # Rust 版本
+merge_derives = true            # 合并派生宏
+use_field_init_shorthand = true # 使用字段初始化简写
+use_try_shorthand = true        # 使用 try 简写
+hard_tabs = false
+newline_style = "Unix"

@@ -1,0 +1,50 @@
+# GitHub Actions CI 工作流配置
+# 用于自动化测试、代码格式检查和代码质量检查
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: 缓存依赖
+        uses: Swatinem/rust-cache@v2
+
+      - name: 检查代码格式
+        run: cargo fmt --all -- --check
+
+      - name: 运行 Clippy
+        run: cargo clippy --all-targets --all-features
+
+      - name: 运行测试
+        run: cargo test --all-features
+
+      - name: 运行文档测试
+        run: cargo test --doc
