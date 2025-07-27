@@ -67,9 +67,7 @@ fn benchmark_expression(
 
     println!("表达式: {expression}");
     println!("解析时间: {parse_time:?}");
-    println!(
-        "平均执行时间: {avg_eval_time:?} (基于{success_count}次执行)"
-    );
+    println!("平均执行时间: {avg_eval_time:?} (基于{success_count}次执行)");
     println!("总执行时间: {total_eval_time:?}");
     println!();
 }
