@@ -1,10 +1,10 @@
-use crate::parser::path::{PathSegment, ParseResult, ParseError};
+use crate::parser::path::{ParseError, ParseResult, PathSegment};
 use serde_json::Value;
 use std::fmt;
 use winnow::{
     ascii::{alpha1, digit1},
     combinator::{alt, delimited, repeat},
-    token::{take_while, take_until},
+    token::{take_until, take_while},
     PResult, Parser,
 };
 
@@ -67,35 +67,32 @@ impl PathExpression {
     }
 
     /// 获取表达式的字符串表示（用于调试）
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         match self {
-            PathExpression::Segments(segments) => {
-                segments.iter()
-                    .map(|s| match s {
-                        PathSegment::Field(name) => format!(".{}", name),
-                        PathSegment::Index(idx) => format!("[{}]", idx),
-                        PathSegment::Wildcard => "*".to_string(),
-                        PathSegment::RecursiveWildcard => "**".to_string(),
-                        PathSegment::TypeFilter(typ) => format!("| {}", typ),
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            PathExpression::Segments(segments) => segments
+                .iter()
+                .map(|s| match s {
+                    PathSegment::Field(name) => format!(".{name}"),
+                    PathSegment::Index(idx) => format!("[{idx}]"),
+                    PathSegment::Wildcard => "*".to_string(),
+                    PathSegment::RecursiveWildcard => "**".to_string(),
+                    PathSegment::TypeFilter(typ) => format!("| {typ}"),
+                })
+                .collect::<Vec<_>>()
+                .join(""),
 
             PathExpression::Pipe { left, right } => {
-                format!("{} | {}", left.to_string(), right.to_string())
+                format!("{left} | {right}")
             }
 
-            PathExpression::Comma(exprs) => {
-                exprs.iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            }
+            PathExpression::Comma(exprs) => exprs
+                .iter()
+                .map(|e| format!("{e}"))
+                .collect::<Vec<_>>()
+                .join(", "),
 
-            PathExpression::Literal(value) => {
-                serde_json::to_string(value).unwrap_or_else(|_| "null".to_string())
-            }
+            PathExpression::Literal(value) => serde_json::to_string(value)
+                .unwrap_or_else(|_| "null".to_string()),
 
             PathExpression::Identity => ".".to_string(),
         }
@@ -104,7 +101,7 @@ impl PathExpression {
 
 impl fmt::Display for PathExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.as_string())
     }
 }
 
@@ -129,11 +126,17 @@ impl PathExpression {
         self.analyze_complexity_with_depth(0)
     }
 
-    fn analyze_complexity_with_depth(&self, current_depth: usize) -> ExpressionComplexity {
+    fn analyze_complexity_with_depth(
+        &self,
+        current_depth: usize,
+    ) -> ExpressionComplexity {
         match self {
             PathExpression::Segments(segments) => {
-                let has_wildcards = segments.iter().any(|s| matches!(s, PathSegment::Wildcard));
-                let has_recursive_wildcards = segments.iter().any(|s| matches!(s, PathSegment::RecursiveWildcard));
+                let has_wildcards =
+                    segments.iter().any(|s| matches!(s, PathSegment::Wildcard));
+                let has_recursive_wildcards = segments
+                    .iter()
+                    .any(|s| matches!(s, PathSegment::RecursiveWildcard));
 
                 ExpressionComplexity {
                     depth: current_depth + 1,
@@ -145,15 +148,23 @@ impl PathExpression {
             }
 
             PathExpression::Pipe { left, right } => {
-                let left_complexity = left.analyze_complexity_with_depth(current_depth + 1);
-                let right_complexity = right.analyze_complexity_with_depth(current_depth + 1);
+                let left_complexity =
+                    left.analyze_complexity_with_depth(current_depth + 1);
+                let right_complexity =
+                    right.analyze_complexity_with_depth(current_depth + 1);
 
                 ExpressionComplexity {
                     depth: left_complexity.depth.max(right_complexity.depth),
-                    pipe_count: left_complexity.pipe_count + right_complexity.pipe_count + 1,
-                    comma_branches: left_complexity.comma_branches * right_complexity.comma_branches,
-                    has_wildcards: left_complexity.has_wildcards || right_complexity.has_wildcards,
-                    has_recursive_wildcards: left_complexity.has_recursive_wildcards || right_complexity.has_recursive_wildcards,
+                    pipe_count: left_complexity.pipe_count
+                        + right_complexity.pipe_count
+                        + 1,
+                    comma_branches: left_complexity.comma_branches
+                        * right_complexity.comma_branches,
+                    has_wildcards: left_complexity.has_wildcards
+                        || right_complexity.has_wildcards,
+                    has_recursive_wildcards: left_complexity
+                        .has_recursive_wildcards
+                        || right_complexity.has_recursive_wildcards,
                 }
             }
 
@@ -165,12 +176,14 @@ impl PathExpression {
                 let mut has_recursive_wildcards = false;
 
                 for expr in exprs {
-                    let complexity = expr.analyze_complexity_with_depth(current_depth + 1);
+                    let complexity =
+                        expr.analyze_complexity_with_depth(current_depth + 1);
                     max_depth = max_depth.max(complexity.depth);
                     total_pipe_count += complexity.pipe_count;
                     total_branches += complexity.comma_branches;
                     has_wildcards = has_wildcards || complexity.has_wildcards;
-                    has_recursive_wildcards = has_recursive_wildcards || complexity.has_recursive_wildcards;
+                    has_recursive_wildcards = has_recursive_wildcards
+                        || complexity.has_recursive_wildcards;
                 }
 
                 ExpressionComplexity {
@@ -197,10 +210,10 @@ impl PathExpression {
     /// 判断表达式是否需要特殊优化
     pub fn needs_optimization(&self) -> bool {
         let complexity = self.analyze_complexity();
-        complexity.depth > 5 ||
-        complexity.pipe_count > 3 ||
-        complexity.comma_branches > 10 ||
-        complexity.has_recursive_wildcards
+        complexity.depth > 5
+            || complexity.pipe_count > 3
+            || complexity.comma_branches > 10
+            || complexity.has_recursive_wildcards
     }
 }
 
@@ -219,7 +232,9 @@ impl ExpressionParser {
                             Ok(expr)
                         } else {
                             Err(ParseError {
-                                message: format!("Unexpected characters: '{}'", input_ref),
+                                message: format!(
+                                    "Unexpected characters: '{input_ref}'"
+                                ),
                                 position: input.len() - input_ref.len(),
                             })
                         }
@@ -231,7 +246,7 @@ impl ExpressionParser {
                 }
             }
             Err(e) => Err(ParseError {
-                message: format!("Failed to parse expression: {:?}", e),
+                message: format!("Failed to parse expression: {e:?}"),
                 position: input.len() - input_ref.len(),
             }),
         }
@@ -276,7 +291,8 @@ impl ExpressionParser {
             Self::parse_literal,
             Self::parse_parenthesized,
             Self::parse_path_or_identity,
-        )).parse_next(input)
+        ))
+        .parse_next(input)
     }
 
     /// 解析路径或恒等表达式
@@ -309,18 +325,17 @@ impl ExpressionParser {
             Self::parse_number_literal,
             Self::parse_boolean_literal,
             Self::parse_null_literal,
-        )).parse_next(input)
+        ))
+        .parse_next(input)
     }
 
     /// 解析字符串字面量
     fn parse_string_literal(input: &mut &str) -> PResult<PathExpression> {
-        delimited(
-            '"',
-            take_until(0.., "\""),
-            '"'
-        )
-        .map(|s: &str| PathExpression::Literal(Value::String(s.to_string())))
-        .parse_next(input)
+        delimited('"', take_until(0.., "\""), '"')
+            .map(|s: &str| {
+                PathExpression::Literal(Value::String(s.to_string()))
+            })
+            .parse_next(input)
     }
 
     /// 解析数字字面量
@@ -328,7 +343,11 @@ impl ExpressionParser {
         // 简单的整数解析
         digit1
             .try_map(|s: &str| s.parse::<i64>())
-            .map(|n| PathExpression::Literal(Value::Number(serde_json::Number::from(n))))
+            .map(|n| {
+                PathExpression::Literal(Value::Number(
+                    serde_json::Number::from(n),
+                ))
+            })
             .parse_next(input)
     }
 
@@ -337,12 +356,15 @@ impl ExpressionParser {
         alt((
             "true".value(PathExpression::Literal(Value::Bool(true))),
             "false".value(PathExpression::Literal(Value::Bool(false))),
-        )).parse_next(input)
+        ))
+        .parse_next(input)
     }
 
     /// 解析 null 字面量
     fn parse_null_literal(input: &mut &str) -> PResult<PathExpression> {
-        "null".value(PathExpression::Literal(Value::Null)).parse_next(input)
+        "null"
+            .value(PathExpression::Literal(Value::Null))
+            .parse_next(input)
     }
 
     /// 解析括号表达式
@@ -350,15 +372,21 @@ impl ExpressionParser {
         delimited(
             ('(', Self::skip_whitespace),
             Self::parse_comma_expression,
-            (Self::skip_whitespace, ')')
-        ).parse_next(input)
+            (Self::skip_whitespace, ')'),
+        )
+        .parse_next(input)
     }
 
     /// 解析路径段序列的内部实现
     fn parse_path_segments(input: &mut &str) -> PResult<Vec<PathSegment>> {
         // 检查是否是单独的点
-        if input.starts_with(".") && (input.len() == 1 ||
-           input.chars().nth(1).map_or(true, |c| c.is_whitespace() || ")|,".contains(c))) {
+        if input.starts_with(".")
+            && (input.len() == 1
+                || input
+                    .chars()
+                    .nth(1)
+                    .is_none_or(|c| c.is_whitespace() || ")|,".contains(c)))
+        {
             // 这是单独的恒等表达式，返回空段列表
             return Ok(vec![]);
         }
@@ -374,17 +402,20 @@ impl ExpressionParser {
             Self::parse_field,
             Self::parse_index,
             Self::parse_wildcard,
-        )).parse_next(input)
+        ))
+        .parse_next(input)
     }
 
     /// 解析字段访问
     fn parse_field(input: &mut &str) -> PResult<PathSegment> {
         alt((
             // 带点的字段访问 .field
-            ('.', Self::parse_identifier).map(|(_, name)| PathSegment::Field(name)),
+            ('.', Self::parse_identifier)
+                .map(|(_, name)| PathSegment::Field(name)),
             // 裸字段名
             Self::parse_identifier.map(PathSegment::Field),
-        )).parse_next(input)
+        ))
+        .parse_next(input)
     }
 
     /// 解析数组索引
@@ -397,7 +428,8 @@ impl ExpressionParser {
                 winnow::combinator::empty.value(PathSegment::Wildcard),
             )),
             ']',
-        ).parse_next(input)
+        )
+        .parse_next(input)
     }
 
     /// 解析通配符
@@ -422,7 +454,12 @@ impl ExpressionParser {
     /// 解析类型过滤器（保留为备用，但在表达式解析中不使用）
     #[allow(dead_code)]
     fn parse_type_filter(input: &mut &str) -> PResult<PathSegment> {
-        (Self::skip_whitespace, '|', Self::skip_whitespace, Self::parse_identifier)
+        (
+            Self::skip_whitespace,
+            '|',
+            Self::skip_whitespace,
+            Self::parse_identifier,
+        )
             .map(|(_, _, _, type_name)| PathSegment::TypeFilter(type_name))
             .parse_next(input)
     }
@@ -433,9 +470,9 @@ impl ExpressionParser {
             alpha1,
             take_while(0.., |c: char| c.is_alphanumeric() || c == '_'),
         )
-        .recognize()
-        .map(|s: &str| s.to_string())
-        .parse_next(input)
+            .recognize()
+            .map(|s: &str| s.to_string())
+            .parse_next(input)
     }
 
     /// 解析数字
@@ -445,9 +482,11 @@ impl ExpressionParser {
 
     /// 跳过空白字符
     fn skip_whitespace(input: &mut &str) -> PResult<()> {
-        take_while(0.., |c: char| c == ' ' || c == '\t' || c == '\n' || c == '\r')
-            .void()
-            .parse_next(input)
+        take_while(0.., |c: char| {
+            c == ' ' || c == '\t' || c == '\n' || c == '\r'
+        })
+        .void()
+        .parse_next(input)
     }
 
     /// 尝试解析逗号
@@ -473,7 +512,7 @@ pub fn parse_path_expression(input: &str) -> ParseResult<PathExpression> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::path::{PathSegment};
+    use crate::parser::path::PathSegment;
 
     #[test]
     fn test_simple_path_creation() {
@@ -490,7 +529,9 @@ mod tests {
 
     #[test]
     fn test_pipe_expression_creation() {
-        let left = PathExpression::from_segments(vec![PathSegment::Field("users".to_string())]);
+        let left = PathExpression::from_segments(vec![PathSegment::Field(
+            "users".to_string(),
+        )]);
         let right = PathExpression::from_segments(vec![PathSegment::Index(0)]);
         let pipe_expr = PathExpression::pipe(left, right);
 
@@ -500,8 +541,12 @@ mod tests {
 
     #[test]
     fn test_comma_expression_creation() {
-        let expr1 = PathExpression::from_segments(vec![PathSegment::Field("name".to_string())]);
-        let expr2 = PathExpression::from_segments(vec![PathSegment::Field("age".to_string())]);
+        let expr1 = PathExpression::from_segments(vec![PathSegment::Field(
+            "name".to_string(),
+        )]);
+        let expr2 = PathExpression::from_segments(vec![PathSegment::Field(
+            "age".to_string(),
+        )]);
         let comma_expr = PathExpression::comma(vec![expr1, expr2]);
 
         assert!(!comma_expr.is_simple_path());
@@ -523,7 +568,9 @@ mod tests {
     #[test]
     fn test_complexity_analysis() {
         // 简单路径
-        let simple = PathExpression::from_segments(vec![PathSegment::Field("name".to_string())]);
+        let simple = PathExpression::from_segments(vec![PathSegment::Field(
+            "name".to_string(),
+        )]);
         let complexity = simple.analyze_complexity();
         assert_eq!(complexity.depth, 1);
         assert_eq!(complexity.pipe_count, 0);
@@ -552,15 +599,17 @@ mod tests {
             PathSegment::Field("users".to_string()),
             PathSegment::Wildcard,
         ]);
-        let right = PathExpression::from_segments(vec![
-            PathSegment::Field("name".to_string()),
-        ]);
+        let right = PathExpression::from_segments(vec![PathSegment::Field(
+            "name".to_string(),
+        )]);
         let pipe = PathExpression::pipe(left, right);
 
-        let age = PathExpression::from_segments(vec![PathSegment::Field("age".to_string())]);
+        let age = PathExpression::from_segments(vec![PathSegment::Field(
+            "age".to_string(),
+        )]);
         let comma = PathExpression::comma(vec![pipe, age]);
 
-        assert_eq!(comma.to_string(), ".users* | .name, .age");
+        assert_eq!(comma.as_string(), ".users* | .name, .age");
     }
 }
 
@@ -574,7 +623,9 @@ mod parser_tests {
         let result = parse_path_expression(".name").unwrap();
         assert_eq!(
             result,
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())])
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string()
+            )])
         );
     }
 
@@ -598,7 +649,9 @@ mod parser_tests {
         let result = parse_path_expression("42").unwrap();
         assert_eq!(
             result,
-            PathExpression::Literal(Value::Number(serde_json::Number::from(42)))
+            PathExpression::Literal(Value::Number(serde_json::Number::from(
+                42
+            )))
         );
     }
 
@@ -621,8 +674,12 @@ mod parser_tests {
     fn test_parse_simple_pipe() {
         let result = parse_path_expression(".name | .length").unwrap();
         let expected = PathExpression::pipe(
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
-            PathExpression::Segments(vec![PathSegment::Field("length".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string(),
+            )]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "length".to_string(),
+            )]),
         );
         assert_eq!(result, expected);
     }
@@ -631,15 +688,21 @@ mod parser_tests {
     fn test_parse_simple_comma() {
         let result = parse_path_expression(".name, .age").unwrap();
         let expected = PathExpression::comma(vec![
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
-            PathExpression::Segments(vec![PathSegment::Field("age".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string(),
+            )]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "age".to_string(),
+            )]),
         ]);
         assert_eq!(result, expected);
     }
 
     #[test]
     fn test_parse_complex_expression() {
-        let result = parse_path_expression(".users[*].name | length, .users | length").unwrap();
+        let result =
+            parse_path_expression(".users[*].name | length, .users | length")
+                .unwrap();
         let expected = PathExpression::comma(vec![
             PathExpression::pipe(
                 PathExpression::Segments(vec![
@@ -647,11 +710,17 @@ mod parser_tests {
                     PathSegment::Wildcard,
                     PathSegment::Field("name".to_string()),
                 ]),
-                PathExpression::Segments(vec![PathSegment::Field("length".to_string())]),
+                PathExpression::Segments(vec![PathSegment::Field(
+                    "length".to_string(),
+                )]),
             ),
             PathExpression::pipe(
-                PathExpression::Segments(vec![PathSegment::Field("users".to_string())]),
-                PathExpression::Segments(vec![PathSegment::Field("length".to_string())]),
+                PathExpression::Segments(vec![PathSegment::Field(
+                    "users".to_string(),
+                )]),
+                PathExpression::Segments(vec![PathSegment::Field(
+                    "length".to_string(),
+                )]),
             ),
         ]);
         assert_eq!(result, expected);
@@ -662,10 +731,16 @@ mod parser_tests {
         let result = parse_path_expression("(.name | .length), .age").unwrap();
         let expected = PathExpression::comma(vec![
             PathExpression::pipe(
-                PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
-                PathExpression::Segments(vec![PathSegment::Field("length".to_string())]),
+                PathExpression::Segments(vec![PathSegment::Field(
+                    "name".to_string(),
+                )]),
+                PathExpression::Segments(vec![PathSegment::Field(
+                    "length".to_string(),
+                )]),
             ),
-            PathExpression::Segments(vec![PathSegment::Field("age".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "age".to_string(),
+            )]),
         ]);
         assert_eq!(result, expected);
     }
@@ -675,7 +750,9 @@ mod parser_tests {
         let result = parse_path_expression(". | .name").unwrap();
         let expected = PathExpression::pipe(
             PathExpression::Identity,
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string(),
+            )]),
         );
         assert_eq!(result, expected);
     }
@@ -698,7 +775,10 @@ pub struct ExpressionEvaluator;
 
 impl ExpressionEvaluator {
     /// 对给定值评估路径表达式
-    pub fn evaluate(expression: &PathExpression, value: &Value) -> Result<Vec<Value>, EvaluationError> {
+    pub fn evaluate(
+        expression: &PathExpression,
+        value: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         match expression {
             PathExpression::Segments(segments) => {
                 // 使用现有的路径段处理逻辑
@@ -743,7 +823,10 @@ impl ExpressionEvaluator {
     }
 
     /// 评估路径段序列（重用现有逻辑）
-    fn evaluate_segments(segments: &[PathSegment], value: &Value) -> Result<Vec<Value>, EvaluationError> {
+    fn evaluate_segments(
+        segments: &[PathSegment],
+        value: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         if segments.is_empty() {
             return Ok(vec![value.clone()]);
         }
@@ -765,7 +848,10 @@ impl ExpressionEvaluator {
     }
 
     /// 评估单个路径段
-    fn evaluate_segment(segment: &PathSegment, value: &Value) -> Result<Vec<Value>, EvaluationError> {
+    fn evaluate_segment(
+        segment: &PathSegment,
+        value: &Value,
+    ) -> Result<Vec<Value>, EvaluationError> {
         match segment {
             PathSegment::Field(field_name) => {
                 match value {
@@ -795,12 +881,8 @@ impl ExpressionEvaluator {
 
             PathSegment::Wildcard => {
                 match value {
-                    Value::Object(map) => {
-                        Ok(map.values().cloned().collect())
-                    }
-                    Value::Array(arr) => {
-                        Ok(arr.clone())
-                    }
+                    Value::Object(map) => Ok(map.values().cloned().collect()),
+                    Value::Array(arr) => Ok(arr.clone()),
                     _ => Ok(vec![]), // 非容器类型，返回空结果
                 }
             }
@@ -871,7 +953,10 @@ impl std::fmt::Display for EvaluationError {
 impl std::error::Error for EvaluationError {}
 
 /// 便利函数：评估路径表达式
-pub fn evaluate_path_expression(expression: &PathExpression, value: &Value) -> Result<Vec<Value>, EvaluationError> {
+pub fn evaluate_path_expression(
+    expression: &PathExpression,
+    value: &Value,
+) -> Result<Vec<Value>, EvaluationError> {
     ExpressionEvaluator::evaluate(expression, value)
 }
 
@@ -882,7 +967,9 @@ mod evaluator_tests {
 
     #[test]
     fn test_evaluate_simple_path() {
-        let expr = PathExpression::Segments(vec![PathSegment::Field("name".to_string())]);
+        let expr = PathExpression::Segments(vec![PathSegment::Field(
+            "name".to_string(),
+        )]);
         let value = json!({"name": "Alice", "age": 30});
 
         let result = evaluate_path_expression(&expr, &value).unwrap();
@@ -910,8 +997,12 @@ mod evaluator_tests {
     #[test]
     fn test_evaluate_pipe() {
         let expr = PathExpression::pipe(
-            PathExpression::Segments(vec![PathSegment::Field("user".to_string())]),
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "user".to_string(),
+            )]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string(),
+            )]),
         );
         let value = json!({"user": {"name": "Alice", "age": 30}});
 
@@ -922,8 +1013,12 @@ mod evaluator_tests {
     #[test]
     fn test_evaluate_comma() {
         let expr = PathExpression::comma(vec![
-            PathExpression::Segments(vec![PathSegment::Field("name".to_string())]),
-            PathExpression::Segments(vec![PathSegment::Field("age".to_string())]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "name".to_string(),
+            )]),
+            PathExpression::Segments(vec![PathSegment::Field(
+                "age".to_string(),
+            )]),
         ]);
         let value = json!({"name": "Alice", "age": 30});
 
