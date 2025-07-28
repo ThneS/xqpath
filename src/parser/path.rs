@@ -10,7 +10,7 @@ use winnow::{
 pub enum PathSegment {
     /// 字段访问，如 .field
     Field(String),
-    /// 数组索引访问，如 [0]
+    /// 数组索引访问，如 \[0\]
     Index(usize),
     /// 通配符，匹配任意字段名 *
     Wildcard,

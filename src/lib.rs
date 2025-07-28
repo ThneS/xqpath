@@ -69,12 +69,15 @@ pub use updater::{
     update, ConfigurableUpdater, UpdateError, Updater, UpdaterConfig,
 };
 
-pub use parser::expression::{
-    evaluate_path_expression, parse_path_expression, AdvancedBuiltinFunction,
-    BuiltinFunction, ComparisonOp, EvaluationError, ExpressionEvaluator,
-    FunctionRegistry, LogicalOp, PathExpression,
+pub use parser::{
+    ast::{ComparisonOp, ExpressionComplexity, LogicalOp, PathExpression},
+    evaluation::{
+        evaluate_path_expression, EvaluationError, ExpressionEvaluator,
+    },
+    functions::{AdvancedBuiltinFunction, BuiltinFunction, FunctionRegistry},
+    parsing::{parse_path_expression, ExpressionParser},
+    path::{parse_path, ParseError, PathSegment},
 };
-pub use parser::path::{parse_path, ParseError, PathSegment};
 
 pub use value::format::{
     detect_format, FormatError, FormatRegistry, JsonFormat, ValueFormat,

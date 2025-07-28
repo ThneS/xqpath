@@ -2,7 +2,7 @@
 ///
 /// # 参数
 /// - `$data`: 输入的数据字符串（JSON 或 YAML 格式）
-/// - `$path`: 路径表达式字符串（如 ".user.name" 或 ".users[0].email"）
+/// - `$path`: 路径表达式字符串（如 ".user.name" 或 ".users\[0\].email"）
 ///
 /// # 返回值
 /// 返回 `Result<Vec<serde_json::Value>, Box<dyn std::error::Error>>`
@@ -49,7 +49,7 @@ macro_rules! query {
 ///
 /// # 参数
 /// - `$data`: 输入的数据字符串（JSON 或 YAML 格式）
-/// - `$path`: 路径表达式字符串（如 ".user.name" 或 ".users[0].email"）
+/// - `$path`: 路径表达式字符串（如 ".user.name" 或 ".users\[0\].email"）
 /// - `$value`: 要设置的新值（必须是 `serde_json::Value` 类型）
 ///
 /// # 返回值
