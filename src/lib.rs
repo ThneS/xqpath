@@ -7,7 +7,7 @@
 //! ### 基本使用
 //!
 //! ```rust
-//! use xqpath::{datapath_get, datapath_exists};
+//! use xqpath::{query, exists};
 //! use serde_json::json;
 //!
 //! let yaml = r#"
@@ -18,11 +18,11 @@
 //! "#;
 //!
 //! // 提取字段值
-//! let name = datapath_get!(yaml, "user.name").unwrap();
+//! let name = query!(yaml, "user.name").unwrap();
 //! assert_eq!(name[0], json!("Alice"));
 //!
 //! // 检查路径是否存在
-//! let exists = datapath_exists!(yaml, "user.email").unwrap();
+//! let exists = exists!(yaml, "user.email").unwrap();
 //! assert_eq!(exists, false);
 //! ```
 //!
@@ -30,14 +30,13 @@
 //!
 //! ```rust
 //! #[cfg(feature = "update")]
-//! use xqpath::datapath_set;
+//! use xqpath::update;
 //! use serde_json::json;
 //!
 //! #[cfg(feature = "update")]
-//! {
-//!     let yaml = r#"user: { name: Alice, age: 30 }"#;
-//!     let updated = datapath_set!(yaml, "user.age", json!(31)).unwrap();
-//!     // updated 包含更新后的数据
+//! fn example() {
+//!     let yaml = r#"user: {name: Alice, age: 30}"#;
+//!     let updated = update!(yaml, "user.age", json!(31)).unwrap();
 //! }
 //! ```
 //!

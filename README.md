@@ -36,6 +36,40 @@ xqpath = "1.2.1"
 
 ### 基本用法
 
+#### 使用便利宏
+
+```rust
+use xqpath::{query, query_one, exists, count};
+use serde_json::json;
+
+let data = r#"
+{
+  "users": [
+    {"name": "Alice", "age": 30, "active": true},
+    {"name": "Bob", "age": 25, "active": false}
+  ]
+}
+"#;
+
+// 查询多个值
+let names = query!(data, "users[*].name").unwrap();
+// ["Alice", "Bob"]
+
+// 查询单个值
+let first_name = query_one!(data, "users[0].name").unwrap();
+// Some("Alice")
+
+// 检查路径是否存在
+let has_users = exists!(data, "users").unwrap();
+// true
+
+// 计算数量
+let user_count = count!(data, "users[*]").unwrap();
+// 2
+```
+
+#### 使用表达式 API
+
 ```rust
 use xqpath::{parse_path_expression, evaluate_path_expression};
 use serde_json::json;
@@ -70,21 +104,54 @@ let result = evaluate_path_expression(&expr, &data)?;
 // 结果: [["senior", "junior"]]
 ```
 
-## 📖 表达式语法
+## � 便利宏
+
+XQPath 提供了一套简洁易用的宏来简化常见操作：
+
+### 基础查询宏
+
+- `query!(data, path)` - 查询多个值，返回 `Vec<Value>`
+- `query_one!(data, path)` - 查询单个值，返回 `Option<Value>`
+- `query_or_default!(data, path, default)` - 查询值或返回默认值
+- `query_as_type!(data, path, Type)` - 查询并转换为指定类型
+
+### 多路径查询宏
+
+- `query_multi!(data, path1, path2, ...)` - 同时查询多个路径
+- `query_string!(data, path)` - 查询并转换为字符串
+- `query_length!(data, path)` - 查询数组/对象长度
+
+### 存在检查宏
+
+- `exists!(data, path)` - 检查单个路径是否存在
+- `exists_all!(data, path1, path2, ...)` - 检查所有路径是否都存在
+- `exists_any!(data, path1, path2, ...)` - 检查是否存在任意一个路径
+
+### 实用工具宏
+
+- `count!(data, path)` - 计算匹配值的数量
+- `get_type!(data, path)` - 获取值的类型信息
+- `extract!(data, path, format)` - 提取并转换格式
+- `update!(data, path, value)` - 更新值（需要 `update` feature）
+
+## �📖 表达式语法
 
 ### 路径语法
+
 - `.field` - 字段访问
 - `[0]` - 数组索引
 - `[*]` - 数组通配符
 - `**` - 递归通配符
 
 ### 操作符
+
 - `|` - 管道：将左侧结果传递给右侧
 - `,` - 逗号：收集多个表达式结果
 - `==`, `!=`, `>`, `<`, `>=`, `<=` - 比较操作符
 - `and`, `or`, `not` - 逻辑操作符
 
 ### 内置函数
+
 - `length()` - 获取数组长度
 - `keys()` - 获取对象键名
 - `type()` - 获取值类型
@@ -94,6 +161,7 @@ let result = evaluate_path_expression(&expr, &data)?;
 - `unique()`, `reverse()` - 数组操作
 
 ### 条件与错误处理
+
 ```bash
 # 条件表达式
 if condition then expr1 else expr2 end
@@ -122,6 +190,7 @@ cat data.json | xqpath '.users | select(.active) | map(.name)'
 ## 🔧 高级用法
 
 ### 复杂数据处理
+
 ```rust
 let expr = parse_path_expression("
     .orders
@@ -138,9 +207,10 @@ let expr = parse_path_expression("
 ```
 
 ### 错误处理
+
 ```rust
 let expr = parse_path_expression("
-    try .config.database.url 
+    try .config.database.url
     catch \"sqlite://default.db\"
 ")?;
 ```

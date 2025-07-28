@@ -1,6 +1,6 @@
 [package]
 name = "xqpath"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 authors = ["Thne"]
 description = "A minimal jq-like path extractor and updater for structured data in Rust"
