@@ -1,6 +1,12 @@
-use std::env;
 use std::fs;
 use std::io::{self, Read};
+use std::path::PathBuf;
+
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand, ValueEnum};
+use colored::*;
+use serde_json::Value;
+
 use xqpath::{
     detect_format, extract, parse_path, JsonFormat, ValueFormat, YamlFormat,
 };
@@ -8,510 +14,732 @@ use xqpath::{
 #[cfg(feature = "update")]
 use xqpath::update;
 
-/// CLI 错误类型
-#[derive(Debug)]
-enum CliError {
-    InvalidArguments(String),
-    IoError(io::Error),
-    ParseError(String),
-    ExtractError(String),
+/// XQPath - A minimal jq-like path extractor and updater for structured data
+#[derive(Parser)]
+#[command(name = "xqpath")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(about = "A minimal jq-like path extractor and updater for structured data in Rust")]
+#[command(long_about = None)]
+struct Cli {
+    /// Subcommand to execute
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Extract values using path expression (default command)
+    Get {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Auto)]
+        output: OutputFormat,
+
+        /// Enable pretty printing for JSON output
+        #[arg(long)]
+        pretty: bool,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Update values using path expression
     #[cfg(feature = "update")]
-    UpdateError(String),
+    Set {
+        /// Path expression (jq-style syntax)
+        path: String,
+        /// New value (JSON format)
+        value: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Auto)]
+        output: OutputFormat,
+
+        /// Enable pretty printing for JSON output
+        #[arg(long)]
+        pretty: bool,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Check if path exists
+    Exists {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Get type of value at path
+    Type {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Count number of values at path
+    Count {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Get length of value at path (for arrays, objects, strings)
+    Length {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Get keys of object at path
+    Keys {
+        /// Path expression (jq-style syntax)
+        path: String,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Auto)]
+        output: OutputFormat,
+
+        /// Enable pretty printing for JSON output
+        #[arg(long)]
+        pretty: bool,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Interactive mode for exploring data
+    Interactive {
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+    },
+    
+    /// Validate data format
+    Validate {
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Convert between formats
+    Convert {
+        /// Target format
+        #[arg(value_enum)]
+        to: OutputFormat,
+        
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Enable pretty printing for JSON output
+        #[arg(long)]
+        pretty: bool,
+
+        /// Disable colored output
+        #[arg(long)]
+        no_color: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
+    /// Show examples of usage
+    Examples,
 }
 
-impl std::fmt::Display for CliError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CliError::InvalidArguments(msg) => {
-                write!(f, "Invalid arguments: {msg}")
-            }
-            CliError::IoError(e) => write!(f, "IO error: {e}"),
-            CliError::ParseError(msg) => write!(f, "Parse error: {msg}"),
-            CliError::ExtractError(msg) => write!(f, "Extract error: {msg}"),
-            #[cfg(feature = "update")]
-            CliError::UpdateError(msg) => write!(f, "Update error: {msg}"),
-        }
-    }
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum OutputFormat {
+    /// Auto-detect from input
+    Auto,
+    /// JSON format
+    Json,
+    /// YAML format
+    Yaml,
+    /// Pretty JSON format
+    JsonPretty,
+    /// Compact output (single line)
+    Compact,
 }
 
-impl std::error::Error for CliError {}
-
-impl From<io::Error> for CliError {
-    fn from(error: io::Error) -> Self {
-        CliError::IoError(error)
-    }
-}
-
-/// CLI 配置结构
-#[derive(Debug)]
-struct CliConfig {
-    command: Command,
-    file_path: Option<String>,
-    path_expression: String,
-    #[cfg(feature = "update")]
-    new_value: Option<String>,
-    output_format: Option<String>,
-}
-
-/// CLI 命令枚举
-#[derive(Debug)]
-enum Command {
-    Get,
-    #[cfg(feature = "update")]
-    Set,
-    Exists,
-    Type,
-    Count,
-    Extract,
-    Help,
-    Version,
+impl OutputFormat {
+    // 移除未使用的get_formatter方法
 }
 
 fn main() {
-    let config = match parse_args() {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            print_usage();
-            std::process::exit(1);
-        }
-    };
-
-    let result = match config.command {
-        Command::Get => run_get(&config),
+    let cli = Cli::parse();
+    
+    // 设置颜色输出 (针对每个命令的no_color参数)
+    let no_color = match &cli.command {
+        Commands::Get { no_color, .. } | 
+        Commands::Exists { no_color, .. } |
+        Commands::Type { no_color, .. } |
+        Commands::Count { no_color, .. } |
+        Commands::Length { no_color, .. } |
+        Commands::Keys { no_color, .. } |
+        Commands::Validate { no_color, .. } |
+        Commands::Convert { no_color, .. } => *no_color,
         #[cfg(feature = "update")]
-        Command::Set => run_set(&config),
-        Command::Exists => run_exists(&config),
-        Command::Type => run_type(&config),
-        Command::Count => run_count(&config),
-        Command::Extract => run_extract(&config),
-        Command::Help => {
-            print_usage();
-            Ok(())
-        }
-        Command::Version => {
-            println!("xqpath {}", xqpath::VERSION);
-            println!(
-                "Features: {}",
-                if xqpath::has_update_feature() {
-                    "update"
-                } else {
-                    "basic"
-                }
-            );
-            Ok(())
-        }
+        Commands::Set { no_color, .. } => *no_color,
+        _ => false,
     };
-
+    
+    if no_color {
+        colored::control::set_override(false);
+    }
+    
+    let result = run_command(&cli);
+    
     if let Err(e) = result {
-        eprintln!("Error: {e}");
+        let verbose = match &cli.command {
+            Commands::Get { verbose, .. } | 
+            Commands::Exists { verbose, .. } |
+            Commands::Type { verbose, .. } |
+            Commands::Count { verbose, .. } |
+            Commands::Length { verbose, .. } |
+            Commands::Keys { verbose, .. } |
+            Commands::Validate { verbose, .. } |
+            Commands::Convert { verbose, .. } => *verbose,
+            #[cfg(feature = "update")]
+            Commands::Set { verbose, .. } => *verbose,
+            _ => false,
+        };
+        
+        if verbose {
+            eprintln!("{} {:#}", "Error:".red().bold(), e);
+        } else {
+            eprintln!("{} {}", "Error:".red().bold(), e);
+        }
         std::process::exit(1);
     }
 }
 
-/// 解析命令行参数
-fn parse_args() -> Result<CliConfig, CliError> {
-    let args: Vec<String> = env::args().collect();
-
-    if args.len() < 2 {
-        return Err(CliError::InvalidArguments(
-            "No command specified".to_string(),
-        ));
-    }
-
-    let command = match args[1].as_str() {
-        "get" => Command::Get,
+fn run_command(cli: &Cli) -> Result<()> {
+    match &cli.command {
+        Commands::Get { path, file, output, pretty, verbose, .. } => {
+            run_get(path, file.as_ref(), output, *pretty, *verbose)
+        },
         #[cfg(feature = "update")]
-        "set" => Command::Set,
-        "exists" => Command::Exists,
-        "type" => Command::Type,
-        "count" => Command::Count,
-        "extract" => Command::Extract,
-        "help" | "--help" | "-h" => Command::Help,
-        "version" | "--version" | "-V" => Command::Version,
-        _ => {
-            return Err(CliError::InvalidArguments(format!(
-                "Unknown command: {}",
-                args[1]
-            )))
-        }
-    };
-
-    let mut file_path = None;
-    let mut path_expression = String::new();
-    #[cfg(feature = "update")]
-    let mut new_value = None;
-    let mut output_format = None;
-
-    let mut i = 2;
-    while i < args.len() {
-        match args[i].as_str() {
-            "-f" | "--file" => {
-                if i + 1 >= args.len() {
-                    return Err(CliError::InvalidArguments(
-                        "Missing file path".to_string(),
-                    ));
-                }
-                file_path = Some(args[i + 1].clone());
-                i += 2;
-            }
-            "-p" | "--path" => {
-                if i + 1 >= args.len() {
-                    return Err(CliError::InvalidArguments(
-                        "Missing path expression".to_string(),
-                    ));
-                }
-                path_expression = args[i + 1].clone();
-                i += 2;
-            }
-            #[cfg(feature = "update")]
-            "-v" | "--value" => {
-                if i + 1 >= args.len() {
-                    return Err(CliError::InvalidArguments(
-                        "Missing value".to_string(),
-                    ));
-                }
-                new_value = Some(args[i + 1].clone());
-                i += 2;
-            }
-            "-o" | "--output" => {
-                if i + 1 >= args.len() {
-                    return Err(CliError::InvalidArguments(
-                        "Missing output format".to_string(),
-                    ));
-                }
-                output_format = Some(args[i + 1].clone());
-                i += 2;
-            }
-            _ => {
-                return Err(CliError::InvalidArguments(format!(
-                    "Unknown option: {}",
-                    args[i]
-                )));
-            }
-        }
+        Commands::Set { path, value, file, output, pretty, verbose, .. } => {
+            run_set(path, value, file.as_ref(), output, *pretty, *verbose)
+        },
+        Commands::Exists { path, file, verbose, .. } => {
+            run_exists(path, file.as_ref(), *verbose)
+        },
+        Commands::Type { path, file, verbose, .. } => {
+            run_type(path, file.as_ref(), *verbose)
+        },
+        Commands::Count { path, file, verbose, .. } => {
+            run_count(path, file.as_ref(), *verbose)
+        },
+        Commands::Length { path, file, verbose, .. } => {
+            run_length(path, file.as_ref(), *verbose)
+        },
+        Commands::Keys { path, file, output, pretty, verbose, .. } => {
+            run_keys(path, file.as_ref(), output, *pretty, *verbose)
+        },
+        Commands::Interactive { file } => {
+            run_interactive(file.as_ref())
+        },
+        Commands::Validate { file, verbose, .. } => {
+            run_validate(file.as_ref(), *verbose)
+        },
+        Commands::Convert { to, file, pretty, verbose, .. } => {
+            run_convert(to, file.as_ref(), *pretty, *verbose)
+        },
+        Commands::Examples => run_examples(),
     }
-
-    // 只有特定命令需要路径表达式
-    match command {
-        Command::Help | Command::Version => {
-            // help 和 version 命令不需要路径表达式
-        }
-        _ => {
-            if path_expression.is_empty() {
-                return Err(CliError::InvalidArguments(
-                    "Path expression is required".to_string(),
-                ));
-            }
-        }
-    }
-
-    Ok(CliConfig {
-        command,
-        file_path,
-        path_expression,
-        #[cfg(feature = "update")]
-        new_value,
-        output_format,
-    })
 }
 
-/// 读取输入数据
-fn read_input(file_path: Option<&str>) -> Result<String, CliError> {
-    match file_path {
-        Some(path) => fs::read_to_string(path).map_err(CliError::from),
+fn read_input(file: Option<&PathBuf>) -> Result<String> {
+    match file {
+        Some(path) => {
+            fs::read_to_string(path)
+                .with_context(|| format!("Failed to read file: {}", path.display()))
+        }
         None => {
             let mut input = String::new();
-            io::stdin().read_to_string(&mut input)?;
+            io::stdin()
+                .read_to_string(&mut input)
+                .context("Failed to read from stdin")?;
             Ok(input)
         }
     }
 }
 
-/// 执行 get 命令
-fn run_get(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
+fn parse_and_extract(input: &str, path: &str) -> Result<(Box<dyn ValueFormat>, Vec<Value>)> {
+    let format = detect_format(input)
+        .context("Failed to detect input format")?;
+    
     let parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
+        .parse(input)
+        .context("Failed to parse input data")?;
+    
+    let path_obj = parse_path(path)
+        .context("Failed to parse path expression")?;
+    
+    let values = extract(&parsed_data, &path_obj)
+        .context("Failed to extract values")?;
+    
+    let owned_values: Vec<Value> = values.into_iter().map(|v| v.clone()).collect();
+    
+    Ok((format, owned_values))
+}
 
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 提取值
-    let values = extract(&parsed_data, &path)
-        .map_err(|e| CliError::ExtractError(e.to_string()))?;
-
-    // 输出结果
-    let output_format_name =
-        config.output_format.as_deref().unwrap_or(format.name());
-    let output_format = get_output_format(output_format_name)?;
-
+fn output_values(values: &[Value], format: &dyn ValueFormat, output: &OutputFormat, pretty: bool) -> Result<()> {
+    let output_format = match output {
+        OutputFormat::Auto => format.name(),
+        _ => match output {
+            OutputFormat::Json | OutputFormat::Compact => "json",
+            OutputFormat::JsonPretty => "json",
+            OutputFormat::Yaml => "yaml",
+            OutputFormat::Auto => unreachable!(),
+        }
+    };
+    
+    let formatter = get_output_format(output_format)?;
+    
     for (i, value) in values.iter().enumerate() {
         if i > 0 {
-            println!(); // 在多个结果之间添加空行
+            println!();
         }
-        let output = output_format
-            .to_string(value)
-            .map_err(|e| CliError::ParseError(e.to_string()))?;
-        print!("{output}");
+        
+        let output_str = if pretty && matches!(output, OutputFormat::JsonPretty | OutputFormat::Auto) {
+            serde_json::to_string_pretty(value)
+                .context("Failed to format output")?
+        } else if matches!(output, OutputFormat::Compact) {
+            serde_json::to_string(value)
+                .context("Failed to format output")?
+        } else {
+            formatter.to_string(value)
+                .context("Failed to format output")?
+        };
+        
+        print!("{}", output_str);
     }
-
+    
     if !values.is_empty() {
-        println!(); // 确保最后有换行
+        println!();
     }
-
+    
     Ok(())
 }
 
-/// 执行 set 命令
+fn run_get(path: &str, file: Option<&PathBuf>, output: &OutputFormat, pretty: bool, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (format, values) = parse_and_extract(&input, path)?;
+    
+    if verbose {
+        eprintln!("{} Found {} value(s)", "Info:".blue().bold(), values.len());
+    }
+    
+    output_values(&values, format.as_ref(), output, pretty)?;
+    Ok(())
+}
+
 #[cfg(feature = "update")]
-fn run_set(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    let new_value_str = config.new_value.as_ref().ok_or_else(|| {
-        CliError::InvalidArguments(
-            "Value is required for set command".to_string(),
-        )
-    })?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
+fn run_set(path: &str, new_value_str: &str, file: Option<&PathBuf>, output: &OutputFormat, pretty: bool, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    
+    let format = detect_format(&input)
+        .context("Failed to detect input format")?;
+    
     let mut parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析新值（假设为 JSON 格式）
+        .parse(&input)
+        .context("Failed to parse input data")?;
+    
+    let path_obj = parse_path(path)
+        .context("Failed to parse path expression")?;
+    
     let new_value: serde_json::Value = serde_json::from_str(new_value_str)
-        .map_err(|e| {
-            CliError::UpdateError(format!("Invalid JSON value: {e}"))
-        })?;
-
-    // 更新值
-    update(&mut parsed_data, &path, new_value)
-        .map_err(|e| CliError::UpdateError(e.to_string()))?;
-
-    // 输出结果
-    let output_format_name =
-        config.output_format.as_deref().unwrap_or(format.name());
-    let output_format = get_output_format(output_format_name)?;
-
-    let output = output_format
-        .to_string(&parsed_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    print!("{output}");
-
+        .context("Invalid JSON value for update")?;
+    
+    update(&mut parsed_data, &path_obj, new_value)
+        .context("Failed to update value")?;
+    
+    let output_format = match output {
+        OutputFormat::Auto => format.name(),
+        _ => match output {
+            OutputFormat::Json | OutputFormat::Compact => "json",
+            OutputFormat::JsonPretty => "json", 
+            OutputFormat::Yaml => "yaml",
+            OutputFormat::Auto => unreachable!(),
+        }
+    };
+    
+    let formatter = get_output_format(output_format)?;
+    let output_str = formatter.to_string(&parsed_data)
+        .context("Failed to format output")?;
+    
+    print!("{}", output_str);
     Ok(())
 }
 
-/// 执行 exists 命令
-fn run_exists(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
-    let parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 检查路径是否存在
-    let values = extract(&parsed_data, &path)
-        .map_err(|e| CliError::ExtractError(e.to_string()))?;
-
+fn run_exists(path: &str, file: Option<&PathBuf>, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (_, values) = parse_and_extract(&input, path)?;
+    
     let exists = !values.is_empty();
-    println!("{exists}");
-
+    
+    if verbose {
+        if exists {
+            println!("{} Path exists", "✓".green().bold());
+        } else {
+            println!("{} Path does not exist", "✗".red().bold());
+        }
+    } else {
+        println!("{}", exists);
+    }
+    
     Ok(())
 }
 
-/// 执行 type 命令
-fn run_type(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
-    let parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 获取值并输出类型
-    let values = extract(&parsed_data, &path)
-        .map_err(|e| CliError::ExtractError(e.to_string()))?;
-
+fn run_type(path: &str, file: Option<&PathBuf>, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (_, values) = parse_and_extract(&input, path)?;
+    
     for value in values {
         let type_name = match value {
-            serde_json::Value::Null => "null",
-            serde_json::Value::Bool(_) => "boolean",
-            serde_json::Value::Number(_) => "number",
-            serde_json::Value::String(_) => "string",
-            serde_json::Value::Array(_) => "array",
-            serde_json::Value::Object(_) => "object",
+            Value::Null => "null",
+            Value::Bool(_) => "boolean",
+            Value::Number(_) => "number", 
+            Value::String(_) => "string",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
         };
-        println!("{type_name}");
-    }
-
-    Ok(())
-}
-
-/// 执行 count 命令
-fn run_count(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
-    let parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 获取值并计数
-    let values = extract(&parsed_data, &path)
-        .map_err(|e| CliError::ExtractError(e.to_string()))?;
-
-    println!("{}", values.len());
-
-    Ok(())
-}
-
-/// 执行 extract 命令
-fn run_extract(config: &CliConfig) -> Result<(), CliError> {
-    let input_data = read_input(config.file_path.as_deref())?;
-
-    // 自动检测格式
-    let format = detect_format(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析数据
-    let parsed_data = format
-        .parse(&input_data)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 解析路径
-    let path = parse_path(&config.path_expression)
-        .map_err(|e| CliError::ParseError(e.to_string()))?;
-
-    // 提取值（与 get 命令相同）
-    let values = extract(&parsed_data, &path)
-        .map_err(|e| CliError::ExtractError(e.to_string()))?;
-
-    // 输出结果
-    let output_format_name =
-        config.output_format.as_deref().unwrap_or(format.name());
-    let output_format = get_output_format(output_format_name)?;
-
-    for (i, value) in values.iter().enumerate() {
-        if i > 0 {
-            println!(); // 在多个结果之间添加空行
+        
+        if verbose {
+            println!("{} {}", "Type:".blue().bold(), type_name);
+        } else {
+            println!("{}", type_name);
         }
-        let output = output_format
-            .to_string(value)
-            .map_err(|e| CliError::ParseError(e.to_string()))?;
-        print!("{output}");
     }
-
-    if !values.is_empty() {
-        println!(); // 确保最后有换行
-    }
-
+    
     Ok(())
 }
 
-/// 获取输出格式
-fn get_output_format(
-    format_name: &str,
-) -> Result<Box<dyn ValueFormat>, CliError> {
+fn run_count(path: &str, file: Option<&PathBuf>, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (_, values) = parse_and_extract(&input, path)?;
+    
+    if verbose {
+        println!("{} {} value(s) found", "Count:".blue().bold(), values.len());
+    } else {
+        println!("{}", values.len());
+    }
+    
+    Ok(())
+}
+
+fn run_length(path: &str, file: Option<&PathBuf>, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (_, values) = parse_and_extract(&input, path)?;
+    
+    for value in values {
+        let length = match &value {
+            Value::Array(arr) => Some(arr.len()),
+            Value::Object(obj) => Some(obj.len()),
+            Value::String(s) => Some(s.len()),
+            _ => None,
+        };
+        
+        match length {
+            Some(len) => {
+                if verbose {
+                    println!("{} {}", "Length:".blue().bold(), len);
+                } else {
+                    println!("{}", len);
+                }
+            }
+            None => {
+                if verbose {
+                    println!("{} Value has no length property", "Info:".yellow().bold());
+                } else {
+                    println!("null");
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn run_keys(path: &str, file: Option<&PathBuf>, output: &OutputFormat, pretty: bool, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    let (format, values) = parse_and_extract(&input, path)?;
+    
+    for value in values {
+        match &value {
+            Value::Object(obj) => {
+                let keys: Vec<Value> = obj.keys()
+                    .map(|k| Value::String(k.clone()))
+                    .collect();
+                let keys_array = Value::Array(keys);
+                output_values(&[keys_array], format.as_ref(), output, pretty)?;
+            }
+            Value::Array(arr) => {
+                let indices: Vec<Value> = (0..arr.len())
+                    .map(|i| Value::Number(serde_json::Number::from(i)))
+                    .collect();
+                let indices_array = Value::Array(indices);
+                output_values(&[indices_array], format.as_ref(), output, pretty)?;
+            }
+            _ => {
+                if verbose {
+                    println!("{} Value is not an object or array", "Info:".yellow().bold());
+                } else {
+                    println!("null");
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn run_interactive(_file: Option<&PathBuf>) -> Result<()> {
+    println!("{}", "🚀 Interactive mode is not yet implemented".yellow().bold());
+    println!("This feature will be available in a future release.");
+    println!("For now, you can use the individual commands like 'get', 'exists', etc.");
+    Ok(())
+}
+
+fn run_validate(file: Option<&PathBuf>, verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    
+    match detect_format(&input) {
+        Ok(format) => {
+            match format.parse(&input) {
+                Ok(_) => {
+                    if verbose {
+                        println!("{} Valid {} format", "✓".green().bold(), format.name());
+                    } else {
+                        println!("valid");
+                    }
+                }
+                Err(e) => {
+                    if verbose {
+                        println!("{} Invalid {}: {}", "✗".red().bold(), format.name(), e);
+                    } else {
+                        println!("invalid");
+                    }
+                    return Err(anyhow::anyhow!("Validation failed: {}", e));
+                }
+            }
+        }
+        Err(e) => {
+            if verbose {
+                println!("{} Cannot detect format: {}", "✗".red().bold(), e);
+            } else {
+                println!("unknown");
+            }
+            return Err(anyhow::anyhow!("Format detection failed: {}", e));
+        }
+    }
+    
+    Ok(())
+}
+
+fn run_convert(to: &OutputFormat, file: Option<&PathBuf>, pretty: bool, _verbose: bool) -> Result<()> {
+    let input = read_input(file)?;
+    
+    let input_format = detect_format(&input)
+        .context("Failed to detect input format")?;
+    
+    let parsed_data = input_format
+        .parse(&input)
+        .context("Failed to parse input data")?;
+    
+    let output_format = match to {
+        OutputFormat::Auto => return Err(anyhow::anyhow!("Cannot convert to 'auto' format")),
+        OutputFormat::Json | OutputFormat::Compact => "json",
+        OutputFormat::JsonPretty => "json",
+        OutputFormat::Yaml => "yaml",
+    };
+    
+    let formatter = get_output_format(output_format)?;
+    
+    let output = if matches!(to, OutputFormat::JsonPretty) || pretty {
+        serde_json::to_string_pretty(&parsed_data)
+            .context("Failed to format as pretty JSON")?
+    } else if matches!(to, OutputFormat::Compact) {
+        serde_json::to_string(&parsed_data)
+            .context("Failed to format as compact JSON")?
+    } else {
+        formatter.to_string(&parsed_data)
+            .context("Failed to format output")?
+    };
+    
+    print!("{}", output);
+    Ok(())
+}
+
+fn run_examples() -> Result<()> {
+    println!("{}", "XQPath Usage Examples".bold().underline());
+    println!();
+    
+    println!("{}", "Basic Operations:".bold());
+    println!("  {} Extract field from JSON/YAML:", "•".blue());
+    println!("    {}", "xqpath get '.user.name' -f data.json".dimmed());
+    println!("    {}", "cat config.yaml | xqpath get '.spec.containers[0].image'".dimmed());
+    println!();
+    
+    println!("  {} Check if path exists:", "•".blue());
+    println!("    {}", "xqpath exists '.user.email' -f data.json".dimmed());
+    println!();
+    
+    println!("  {} Get value type:", "•".blue());
+    println!("    {}", "xqpath type '.users' -f data.json".dimmed());
+    println!();
+    
+    println!("  {} Count array elements:", "•".blue());
+    println!("    {}", "xqpath count '.users[*]' -f data.json".dimmed());
+    println!();
+    
+    #[cfg(feature = "update")]
+    {
+        println!("{}", "Update Operations:".bold());
+        println!("  {} Update a field:", "•".blue());
+        println!("    {}", "xqpath set '.version' '\"2.0\"' -f config.yaml".dimmed());
+        println!();
+    }
+    
+    println!("{}", "Advanced Features:".bold());
+    println!("  {} Get object keys:", "•".blue());
+    println!("    {}", "xqpath keys '.user' -f data.json".dimmed());
+    println!();
+    
+    println!("  {} Get length:", "•".blue());
+    println!("    {}", "xqpath length '.users' -f data.json".dimmed());
+    println!();
+    
+    println!("  {} Validate format:", "•".blue());
+    println!("    {}", "xqpath validate -f data.json".dimmed());
+    println!();
+    
+    println!("  {} Convert formats:", "•".blue());
+    println!("    {}", "xqpath convert json -f config.yaml".dimmed());
+    println!("    {}", "xqpath convert yaml -f data.json --pretty".dimmed());
+    println!();
+    
+    println!("{}", "Path Syntax:".bold());
+    println!("  {} Object field access:", "•".green());
+    println!("    {}", ".field, .nested.field".dimmed());
+    println!();
+    
+    println!("  {} Array element access:", "•".green());
+    println!("    {}", ".array[0], .users[1].name".dimmed());
+    println!();
+    
+    println!("  {} Wildcard matching:", "•".green());
+    println!("    {}", ".users[*].name    # All user names".dimmed());
+    println!("    {}", ".**               # Recursive search".dimmed());
+    println!();
+    
+    println!("  {} Type filtering:", "•".green());
+    println!("    {}", ".data | string    # Only string values".dimmed());
+    println!("    {}", ".items | array    # Only array values".dimmed());
+    println!();
+    
+    println!("{}", "Output Options:".bold());
+    println!("  {} Format control:", "•".yellow());
+    println!("    {}", "--output json     # Force JSON output".dimmed());
+    println!("    {}", "--output yaml     # Force YAML output".dimmed());
+    println!("    {}", "--pretty          # Pretty-print JSON".dimmed());
+    println!("    {}", "--no-color        # Disable colors".dimmed());
+    println!();
+    
+    Ok(())
+}
+
+fn get_output_format(format_name: &str) -> Result<Box<dyn ValueFormat>> {
     match format_name.to_lowercase().as_str() {
         "json" => Ok(Box::new(JsonFormat)),
         "yaml" | "yml" => Ok(Box::new(YamlFormat)),
-        _ => Err(CliError::InvalidArguments(format!(
-            "Unsupported output format: {format_name}"
-        ))),
+        _ => Err(anyhow::anyhow!("Unsupported output format: {}", format_name)),
     }
 }
 
-/// 打印使用说明
-fn print_usage() {
-    println!("DataPath - A minimal jq-like path extractor and updater for structured data");
-    println!();
-    println!("USAGE:");
-    println!("    datapath <COMMAND> [OPTIONS]");
-    println!();
-    println!("COMMANDS:");
-    println!("    get        Extract values using path expression");
-    #[cfg(feature = "update")]
-    println!("    set        Update values using path expression");
-    println!("    exists     Check if path exists (outputs true/false)");
-    println!("    type       Get type of value at path");
-    println!("    count      Count number of values at path");
-    println!("    extract    Extract values (alias for get)");
-    println!("    help       Print this help message");
-    println!("    version    Print version information");
-    println!();
-    println!("OPTIONS:");
-    println!("    -f, --file <FILE>     Input file (reads from stdin if not specified)");
-    println!("    -p, --path <PATH>     Path expression (jq-style syntax)");
-    #[cfg(feature = "update")]
-    println!(
-        "    -v, --value <VALUE>   New value for set command (JSON format)"
-    );
-    println!("    -o, --output <FORMAT> Output format (json, yaml)");
-    println!();
-    println!("EXAMPLES:");
-    println!("    # Extract field from YAML file");
-    println!("    datapath get -f config.yaml -p 'spec.containers[0].image'");
-    println!();
-    println!("    # Extract from stdin with wildcard");
-    println!("    cat data.json | datapath get -p 'users[*].name'");
-    println!();
-    #[cfg(feature = "update")]
-    {
-        println!("    # Update field value");
-        println!("    datapath set -f config.yaml -p 'version' -v '\"2.0\"'");
-        println!();
-    }
-    println!("PATH SYNTAX:");
-    println!("    .field       Access object field");
-    println!("    [index]      Access array element");
-    println!("    *            Wildcard (any field/element)");
-    println!("    **           Recursive wildcard");
-    println!(
-        "    | type       Type filter (string, number, boolean, array, object)"
-    );
-    println!();
-    println!("For more information, visit: https://github.com/ThneS/xqpath");
-}
+
