@@ -74,7 +74,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn demo_basic_profiling(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "profiling"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("1️⃣  基础性能分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -104,7 +105,8 @@ fn demo_basic_profiling(
 }
 
 fn demo_memory_analysis(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "profiling"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("2️⃣  内存使用分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -139,7 +141,8 @@ fn demo_memory_analysis(
 }
 
 fn demo_benchmarking(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "benchmark"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("3️⃣  基准测试 (需要 benchmark feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -163,7 +166,8 @@ fn demo_benchmarking(
 }
 
 fn demo_complete_performance(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "profiling"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("4️⃣  完整性能分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -196,7 +200,8 @@ fn demo_complete_performance(
 }
 
 fn demo_benchmark_suite(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "benchmark"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("5️⃣  基准测试套件演示 (需要 benchmark feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -269,7 +274,8 @@ fn demo_benchmark_suite(
 }
 
 fn demo_performance_monitor(
-    _data_str: &str,
+    #[cfg_attr(not(feature = "profiling"), allow(unused_variables))]
+    data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("6️⃣  性能监控器演示 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
