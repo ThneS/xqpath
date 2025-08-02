@@ -6,8 +6,7 @@ use xqpath::{query, query_one};
 
 #[cfg(feature = "profiling")]
 use xqpath::{
-    profile_complete, query_memory, query_with_profile,
-    PerformanceMonitor,
+    profile_complete, query_memory, query_with_profile, PerformanceMonitor,
 };
 
 #[cfg(feature = "benchmark")]
@@ -58,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     demo_benchmarking(&data_str)?;
 
     // 4. 完整性能分析
-    demo_complete_profiling(&data_str)?;
+    demo_complete_performance(&data_str)?;
 
     // 5. 基准测试套件演示
     demo_benchmark_suite(&data_str)?;
@@ -75,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn demo_basic_profiling(
-    data_str: &str,
+    _data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("1️⃣  基础性能分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -105,7 +104,7 @@ fn demo_basic_profiling(
 }
 
 fn demo_memory_analysis(
-    data_str: &str,
+    _data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("2️⃣  内存使用分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -139,7 +138,9 @@ fn demo_memory_analysis(
     Ok(())
 }
 
-fn demo_benchmarking(data_str: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn demo_benchmarking(
+    _data_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("3️⃣  基准测试 (需要 benchmark feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
@@ -161,8 +162,8 @@ fn demo_benchmarking(data_str: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn demo_complete_profiling(
-    data_str: &str,
+fn demo_complete_performance(
+    _data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("4️⃣  完整性能分析 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -195,14 +196,13 @@ fn demo_complete_profiling(
 }
 
 fn demo_benchmark_suite(
-    data_str: &str,
+    _data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("5️⃣  基准测试套件演示 (需要 benchmark feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     #[cfg(feature = "benchmark")]
     {
-        
         use std::time::Duration;
 
         let config = BenchmarkConfig {
@@ -269,7 +269,7 @@ fn demo_benchmark_suite(
 }
 
 fn demo_performance_monitor(
-    data_str: &str,
+    _data_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("6️⃣  性能监控器演示 (需要 profiling feature)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
