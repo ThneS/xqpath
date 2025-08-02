@@ -1,0 +1,15 @@
+users:
+  - name: Alice
+    age: 30
+    email: alice@example.com
+  - name: Bob
+    age: 25
+    email: bob@example.com
+config:
+  version: "1.0.0"
+  debug:
+    enabled: true
+    level: info
+settings:
+  theme: dark
+  language: en

@@ -1,0 +1,23 @@
+# XQPath v1.4.3 默认配置示例
+
+debug:
+  level: info
+  output: stderr
+  file: null
+  timing: false
+
+performance:
+  memory_limit: "1GB"
+  timeout: "30s"
+  cache_size: 1000
+  parallel_jobs: 4
+
+paths:
+  cache_dir: "~/.xqpath/cache"
+  log_dir: "~/.xqpath/logs"
+  config_dir: "~/.xqpath"
+
+features:
+  colored_output: true
+  interactive_mode: false
+  auto_backup: true

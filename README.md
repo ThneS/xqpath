@@ -5,6 +5,9 @@
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 [![Crates.io](https://img.shields.io/crates/v/xqpath.svg)](https://crates.io/crates/xqpath)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/ThneS/xqpath/workflows/CI/badge.svg)](https://github.com/ThneS/xqpath/actions)
+[![Release](https://github.com/ThneS/xqpath/workflows/Release/badge.svg)](https://github.com/ThneS/xqpath/actions)
+[![Test Coverage](https://img.shields.io/badge/test_coverage-77_tests-green.svg)](#🧪-开发和测试)
 
 ## ✨ 特性
 
@@ -13,7 +16,9 @@
 - **🔧 多格式支持**：JSON、YAML 格式无缝处理
 - **⚡ 现代化 CLI**：10+ 专用命令，彩色输出
 - **🛡️ 类型安全**：完整的 Rust 类型系统支持
-- **🔍 调试工具**：v1.4.1 提供完整的调试和性能分析功能
+- **🔍 调试工具**：完整的调试和性能分析功能
+- **⚙️ 配置管理**：统一的配置文件管理和模板系统
+- **🎯 交互式调试**：强大的交互式调试器
 
 ## 📦 安装
 
@@ -33,20 +38,20 @@ cargo install xqpath
 use xqpath::{query, query_one, exists};
 use serde_json::json;
 
-let data = json!({
+let data = r#"{
   "users": [
     {"name": "Alice", "age": 30},
     {"name": "Bob", "age": 25}
   ]
-});
+}"#;
 
 // 查询多个值
 let names = query!(data, "users[*].name").unwrap();
-// ["Alice", "Bob"]
+// [String("Alice"), String("Bob")]
 
 // 查询单个值
 let first_name = query_one!(data, "users[0].name").unwrap();
-// Some("Alice")
+// Some(String("Alice"))
 
 // 检查路径是否存在
 let has_users = exists!(data, "users").unwrap();
@@ -72,7 +77,16 @@ xqpath keys '.config' -f settings.json
 xqpath convert yaml -f config.json
 xqpath validate -f data.json
 
-# 调试和性能分析 (v1.4.1)
+# 配置管理
+xqpath config show                    # 显示当前配置
+xqpath config set debug.enabled true # 设置配置项
+xqpath config profile use production  # 切换配置模板
+xqpath config profile list            # 列出可用模板
+
+# 交互式调试器
+xqpath debug                          # 启动交互式调试器
+
+# 调试和性能分析
 xqpath debug '.complex.path' -f data.json
 xqpath trace '.users[*]' -f data.json --detailed
 xqpath profile '.query' -f data.json --memory
@@ -97,7 +111,40 @@ xqpath benchmark '.path' -f data.json --iterations 1000
 
 ## 🔧 高级功能
 
-### 调试和性能分析 (v1.4.1)
+### 配置管理
+
+```bash
+# 显示当前配置
+xqpath config show
+
+# 设置配置项
+xqpath config set output.format yaml
+xqpath config set debug.enabled true
+
+# 配置模板管理
+xqpath config profile list              # 列出可用模板
+xqpath config profile use development   # 切换到开发模板
+xqpath config profile use production    # 切换到生产模板
+xqpath config profile create my-config  # 创建自定义模板
+```
+
+### 交互式调试器
+
+```bash
+# 启动交互式调试器
+xqpath debug
+
+# 调试器中的命令
+> extract .user.name                # 提取数据
+> set file data.json               # 设置数据文件
+> eval ".items[*].price"           # 评估表达式
+> show config                      # 显示配置
+> stats                           # 性能统计
+> help                            # 显示帮助
+> quit                            # 退出调试器
+```
+
+### 调试和性能分析
 
 ```bash
 # 调试模式 - 显示详细执行信息
@@ -131,21 +178,98 @@ match query!(data, ".some.path") {
 let optional = query_one!(data, ".user.email")?; // 返回 Option<Value>
 ```
 
-## 📚 版本功能
+## 🧪 开发和测试
 
-### v1.4.1 - 调试和错误分析
+### 快速开始
 
-- ✅ **完整的调试系统**：`debug` 和 `trace` 命令
-- ✅ **智能错误分析**：自动检测错误类型并提供修复建议
-- ✅ **全局调试选项**：支持所有命令的调试模式
-- ✅ **执行时间统计**：详细的性能分析信息
+```bash
+# 克隆项目
+git clone https://github.com/ThneS/xqpath.git
+cd xqpath
 
-### v1.4.2 - 性能监控 (当前版本)
+# 快速测试
+make test-quick
 
-- ✅ **性能分析**：`profile` 命令，内存和执行指标
-- ✅ **基准测试**：`benchmark` 命令，量化性能对比
-- ✅ **实时监控**：`monitor` 命令，长时间性能观察
-- ✅ **多格式报告**：支持 HTML、JSON、CSV 输出
+# 或使用测试脚本
+./scripts/test-runner.sh quick
+```
+
+### 测试命令
+
+```bash
+# Makefile方式 (推荐)
+make test-quick    # 快速测试 (~1秒)
+make test-config   # 配置管理测试
+make test-debug    # 调试功能测试
+make test-all      # 完整测试
+
+# 测试脚本方式
+./scripts/test-runner.sh quick -q     # 静默快速测试
+./scripts/test-runner.sh config -v    # 详细配置测试
+./scripts/test-runner.sh all -f       # 并行完整测试
+
+# 原生cargo方式
+cargo test --features config-management,interactive-debug
+```
+
+### 开发工作流
+
+```bash
+# 开发前检查
+make dev-check     # 格式化 + 检查 + 快速测试
+
+# 代码质量
+make fmt          # 代码格式化
+make lint         # 代码检查
+make check        # 语法检查
+
+# 构建
+make build        # 开发构建
+make release      # 发布构建
+```
+
+### 配置文件
+
+项目支持多种配置方式，配置文件位于 `config/` 目录：
+
+```bash
+config/
+├── examples/          # 配置示例
+├── templates/         # 配置模板
+└── profiles/          # 预定义配置
+```
+
+详细的开发指南请参考 [`docs/test-optimization.md`](docs/test-optimization.md)。
+
+## 🔄 CI/CD 集成
+
+项目已集成完整的 CI/CD 流程：
+
+### GitHub Actions 工作流
+
+- **CI**: 自动化测试、代码检查、跨平台测试
+- **Release**: 多平台构建、自动发布到 crates.io
+
+### 本地开发与 CI 一致性
+
+```bash
+# 模拟CI快速检查流程
+make dev-check
+
+# 模拟CI完整测试流程
+make ci-check
+
+# 模拟发布前检查
+make pre-release
+```
+
+### CI 测试策略
+
+1. **快速检查** (并行): 格式化、语法检查、代码质量
+2. **分层测试** (并行): 核心测试、配置测试、调试测试
+3. **完整测试**: 所有功能集成测试
+4. **跨平台测试**: Linux、Windows、macOS
+5. **发布检查**: 发布前完整验证
 
 ## 🤝 贡献
 

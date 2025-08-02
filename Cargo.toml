@@ -1,9 +1,9 @@
 [package]
 name = "xqpath"
-version = "1.4.2"
+version = "1.4.3"
 edition = "2021"
 authors = ["Thne"]
-description = "A high-performance jq-inspired path extractor and updater for structured data in Rust with advanced debugging and performance monitoring capabilities"
+description = "A high-performance jq-inspired path extractor and updater for structured data in Rust with advanced debugging, configuration management and interactive debugging capabilities"
 license = "Apache-2.0"
 repository = "https://github.com/ThneS/xqpath"
 keywords = ["json", "yaml", "path", "query", "jq"]
@@ -27,6 +27,7 @@ clap = { version = "4.0", features = [
 ], optional = true }
 colored = { version = "2.0", optional = true }
 anyhow = { version = "1.0", optional = true }
+thiserror = "1.0"
 
 # 调试功能依赖 (v1.4.1)
 tracing = { version = "0.1", optional = true }
@@ -44,9 +45,11 @@ pprof = { version = "0.13", optional = true, features = [
 ] }
 criterion = { version = "0.5", optional = true, features = ["html_reports"] }
 
-# 监控依赖 (v1.4.3)
-tokio = { version = "1.0", optional = true, features = ["full"] }
-prometheus = { version = "0.13", optional = true }
+# 配置管理依赖 (v1.4.3)
+dirs = { version = "5.0", optional = true }
+toml = { version = "0.8", optional = true }
+
+# 交互式调试器依赖 (v1.4.3)
 crossterm = { version = "0.27", optional = true }
 rustyline = { version = "13.0", optional = true }
 
@@ -65,17 +68,20 @@ debug = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-appender"]
 profiling = ["debug", "dep:sysinfo", "dep:pprof", "dep:criterion"]
 benchmark = ["profiling"]
 
-# 监控功能 (v1.4.3)
-monitoring = ["profiling", "dep:tokio", "dep:prometheus"]
-interactive-debug = ["monitoring", "dep:crossterm", "dep:rustyline"]
+# 配置管理功能 (v1.4.3)
+config-management = ["yaml", "dep:dirs", "dep:toml"]
+
+# 交互式调试器功能 (v1.4.3)
+interactive-debug = ["debug", "dep:crossterm", "dep:rustyline"]
 
 # CLI 功能
 cli = ["dep:clap", "dep:colored", "dep:anyhow"]
 cli-debug = ["cli", "debug"]
-cli-full = ["cli-debug", "interactive-debug"]
+cli-full = ["cli-debug", "config-management", "interactive-debug"]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.8"
 
 [[bench]]
 name = "performance"

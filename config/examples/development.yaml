@@ -1,0 +1,23 @@
+# XQPath v1.4.3 开发环境配置
+
+debug:
+  level: debug
+  output: stderr
+  file: "~/.xqpath/logs/debug.log"
+  timing: true
+
+performance:
+  memory_limit: "2GB"
+  timeout: "60s"
+  cache_size: 2000
+  parallel_jobs: 8
+
+paths:
+  cache_dir: "~/.xqpath/cache"
+  log_dir: "~/.xqpath/logs"
+  config_dir: "~/.xqpath"
+
+features:
+  colored_output: true
+  interactive_mode: true
+  auto_backup: true

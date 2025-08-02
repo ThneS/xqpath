@@ -1,0 +1,45 @@
+# 测试配置文件 - 用于自定义测试行为
+# 可以通过环境变量或者这个文件来配置测试参数
+
+[test]
+# 默认测试超时时间 (秒)
+timeout = 30
+
+# 并行测试线程数 (0 = 自动检测)
+test_threads = 0
+
+# 是否显示测试输出
+nocapture = false
+
+[features]
+# 默认启用的features
+default = ["config-management", "interactive-debug"]
+
+# 快速测试时的features
+quick = ["config-management", "interactive-debug"]
+
+# 核心测试时的features (不包含可选功能)
+core = []
+
+[groups]
+# 测试分组定义
+quick_tests = ["--lib", "--test integration", "--test config_debug_features"]
+
+core_tests = ["--lib", "--test integration"]
+
+config_tests = ["--test config_debug_features --features config-management"]
+
+debug_tests = ["--test config_debug_features --features interactive-debug"]
+
+all_tests = ["--all"]
+
+[performance]
+# 性能测试配置
+benchmark_iterations = 1000
+benchmark_timeout = 60
+
+[output]
+# 输出格式配置
+quiet_mode = true
+show_timing = true
+show_stats = false

@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+        default: "v1.4.3"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 发布前完整检查
+  pre-release-check:
+    name: 发布前检查
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-check-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 完整的发布前检查
+        run: make pre-release
+
+  # 多平台构建
+  build:
+    name: 构建 ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    needs: pre-release-check
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 构建发布版本
+        run: cargo build --release --target ${{ matrix.target }} --features config-management,interactive-debug
+
+      - name: 准备发布文件 (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p releases
+          cp target/${{ matrix.target }}/release/xqpath releases/xqpath-${{ matrix.target }}
+          tar -czf releases/xqpath-${{ matrix.target }}.tar.gz -C releases xqpath-${{ matrix.target }}
+
+      - name: 准备发布文件 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir releases
+          copy target\${{ matrix.target }}\release\xqpath.exe releases\xqpath-${{ matrix.target }}.exe
+          powershell Compress-Archive -Path releases\xqpath-${{ matrix.target }}.exe -DestinationPath releases\xqpath-${{ matrix.target }}.zip
+
+      - name: 上传发布文件
+        uses: actions/upload-artifact@v3
+        with:
+          name: xqpath-${{ matrix.target }}
+          path: releases/*
+
+  # 发布到 crates.io
+  publish-crates:
+    name: 发布到 crates.io
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-publish-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 发布到 crates.io
+        run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
+
+  # 创建 GitHub Release
+  create-release:
+    name: 创建 GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v3
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: XQPath ${{ github.event.inputs.version }}
+          body: |
+            ## XQPath ${{ github.event.inputs.version }}
+
+            ### 新特性
+            - 配置管理系统
+            - 交互式调试器
+            - 优化的测试框架
+
+            ### 下载
+            选择适合您平台的二进制文件：
+            - Linux (x86_64): xqpath-x86_64-unknown-linux-gnu.tar.gz
+            - Windows (x86_64): xqpath-x86_64-pc-windows-msvc.zip
+            - macOS (x86_64): xqpath-x86_64-apple-darwin.tar.gz
+            - macOS (ARM64): xqpath-aarch64-apple-darwin.tar.gz
+
+            ### 安装
+            ```bash
+            # 通过 cargo 安装
+            cargo install xqpath
+
+            # 或下载二进制文件
+            wget https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version }}/xqpath-x86_64-unknown-linux-gnu.tar.gz
+            tar -xzf xqpath-x86_64-unknown-linux-gnu.tar.gz
+            ```
+          files: |
+            **/xqpath-*
+          draft: false
+          prerelease: false

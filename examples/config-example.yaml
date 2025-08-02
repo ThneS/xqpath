@@ -1,0 +1,36 @@
+# XQPath v1.4.3 配置文件示例
+#
+# 注意：此文件已迁移到 config/examples/ 目录
+# 请查看 config/examples/ 目录获取更多配置示例
+#
+# 相关文件：
+# - config/examples/default.yaml      # 默认配置
+# - config/examples/development.yaml  # 开发环境配置
+# - config/examples/production.yaml   # 生产环境配置
+# - config/examples/performance.yaml  # 高性能配置
+# - config/templates/base.yaml        # 基础模板
+# - config/templates/debug.yaml       # 调试模板
+#
+# 查看配置说明：config/README.md
+
+debug:
+  level: info
+  output: stderr
+  file: null
+  timing: false
+
+performance:
+  memory_limit: "1GB"
+  timeout: "30s"
+  cache_size: 1000
+  parallel_jobs: 4
+
+paths:
+  cache_dir: "~/.xqpath/cache"
+  log_dir: "~/.xqpath/logs"
+  config_dir: "~/.xqpath"
+
+features:
+  colored_output: true
+  interactive_mode: false
+  auto_backup: true

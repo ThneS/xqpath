@@ -87,6 +87,14 @@ pub mod value;
 #[cfg(feature = "debug")]
 pub mod debug;
 
+// 配置管理模块 (v1.4.3+)
+#[cfg(feature = "config-management")]
+pub mod config;
+
+// 交互式调试器模块 (v1.4.3+)
+#[cfg(feature = "interactive-debug")]
+pub mod debugger;
+
 // 重新导出主要类型和函数
 pub use extractor::{
     extract, ConfigurableExtractor, ExtractError, Extractor, ExtractorConfig,
@@ -121,6 +129,17 @@ pub use debug::profiler::{MemoryProfiler, PerformanceMonitor, ProfileReport};
 #[cfg(feature = "benchmark")]
 pub use debug::benchmark::{
     BenchmarkConfig, BenchmarkOutputFormat, BenchmarkResult, BenchmarkSuite,
+};
+
+// v1.4.3 配置管理功能导出
+#[cfg(feature = "config-management")]
+pub use config::{ConfigError, ConfigManager, ConfigResult, XQPathConfig};
+
+// v1.4.3 交互式调试器功能导出
+#[cfg(feature = "interactive-debug")]
+pub use debugger::{
+    Breakpoint, DataInspector, DebugCommand, DebugError, DebugResult,
+    DebugSession, QueryEvaluator, WatchPoint, XQPathDebugger,
 };
 
 pub use parser::{

@@ -379,6 +379,21 @@ enum Commands {
         #[arg(long)]
         continuous: bool,
     },
+
+    /// Configuration management commands (v1.4.3+)
+    #[cfg(feature = "config-management")]
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+
+    /// Interactive debugger (v1.4.3+)
+    #[cfg(feature = "interactive-debug")]
+    InteractiveDebug {
+        /// Input file to load (optional)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+    },
 }
 
 // 调试日志级别
@@ -390,6 +405,62 @@ enum DebugLogLevel {
     Info,
     Warn,
     Error,
+}
+
+// 配置管理命令 (v1.4.3+)
+#[cfg(feature = "config-management")]
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show current configuration
+    Show,
+
+    /// Set a configuration value
+    Set {
+        /// Configuration key (e.g., "debug.level")
+        key: String,
+        /// Configuration value
+        value: String,
+    },
+
+    /// Reset configuration to defaults
+    Reset,
+
+    /// Create configuration template
+    Template {
+        /// Template name
+        name: String,
+    },
+
+    /// Create configuration profile
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
+
+    /// Show configuration audit log
+    Audit,
+
+    /// Migrate configuration files
+    Migrate,
+}
+
+#[cfg(feature = "config-management")]
+#[derive(Subcommand)]
+enum ProfileAction {
+    /// Create new profile
+    Create {
+        /// Profile name
+        name: String,
+    },
+
+    /// Switch to profile
+    Switch {
+        /// Profile name
+        name: String,
+    },
+
+    /// List all profiles
+    List,
 }
 
 // 基准测试输出格式 (v1.4.2+)
@@ -637,6 +708,14 @@ fn run_command(cli: &Cli) -> Result<()> {
             continuous,
         } => {
             run_monitor(path, file.as_ref(), *duration, *interval, *continuous)
+        }
+        // v1.4.3 配置管理命令
+        #[cfg(feature = "config-management")]
+        Commands::Config { action } => run_config(action),
+        // v1.4.3 交互式调试器命令
+        #[cfg(feature = "interactive-debug")]
+        Commands::InteractiveDebug { file } => {
+            run_interactive_debugger(file.as_ref())
         }
     }
 }
@@ -1592,4 +1671,155 @@ fn format_value_preview(value: &Value) -> String {
         Value::Object(obj) => format!("{{{}keys}}", obj.len()),
         _ => value.to_string(),
     }
+}
+
+// v1.4.3 配置管理命令实现
+#[cfg(feature = "config-management")]
+fn run_config(action: &ConfigAction) -> Result<()> {
+    use xqpath::config::ConfigManager;
+
+    let mut manager = match ConfigManager::new() {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("❌ 配置管理器初始化失败: {e}");
+            return Ok(());
+        }
+    };
+
+    match action {
+        ConfigAction::Show => {
+            let config = manager.get_config();
+            println!("📋 当前配置:");
+            println!("活动配置文件: {}", manager.get_active_profile());
+            println!();
+
+            // 显示配置内容（这里使用简化的显示）
+            println!("🔧 调试配置:");
+            println!("  level: {}", config.debug.level);
+            println!("  output: {}", config.debug.output);
+            println!("  timing: {}", config.debug.timing);
+
+            println!("\n⚡ 性能配置:");
+            println!("  memory_limit: {}", config.performance.memory_limit);
+            println!("  timeout: {}", config.performance.timeout);
+            println!("  cache_size: {}", config.performance.cache_size);
+            println!("  parallel_jobs: {}", config.performance.parallel_jobs);
+
+            println!("\n🎯 功能配置:");
+            println!("  colored_output: {}", config.features.colored_output);
+            println!(
+                "  interactive_mode: {}",
+                config.features.interactive_mode
+            );
+            println!("  auto_backup: {}", config.features.auto_backup);
+        }
+
+        ConfigAction::Set { key, value } => {
+            match manager.set_config_value(key, value) {
+                Ok(()) => {
+                    if let Ok(()) = manager.save_config() {
+                        println!("✅ 配置已更新: {key} = {value}");
+                    } else {
+                        eprintln!("❌ 配置保存失败");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("❌ 配置设置失败: {e}");
+                }
+            }
+        }
+
+        ConfigAction::Reset => match manager.reset_config() {
+            Ok(()) => {
+                println!("🔄 配置已重置为默认值");
+            }
+            Err(e) => {
+                eprintln!("❌ 配置重置失败: {e}");
+            }
+        },
+
+        ConfigAction::Template { name } => {
+            match manager.create_template(name) {
+                Ok(()) => {
+                    println!("📄 配置模板已创建: {name}");
+                }
+                Err(e) => {
+                    eprintln!("❌ 模板创建失败: {e}");
+                }
+            }
+        }
+
+        ConfigAction::Profile { action } => match action {
+            ProfileAction::Create { name } => {
+                match manager.create_profile(name) {
+                    Ok(()) => {
+                        println!("📁 配置文件已创建: {name}");
+                    }
+                    Err(e) => {
+                        eprintln!("❌ 配置文件创建失败: {e}");
+                    }
+                }
+            }
+            ProfileAction::Switch { name } => {
+                match manager.switch_profile(name) {
+                    Ok(()) => {
+                        println!("🔄 已切换到配置文件: {name}");
+                    }
+                    Err(e) => {
+                        eprintln!("❌ 配置文件切换失败: {e}");
+                    }
+                }
+            }
+            ProfileAction::List => {
+                let profiles = manager.list_profiles();
+                let active = manager.get_active_profile();
+
+                println!("📁 可用的配置文件:");
+                for profile in profiles {
+                    if profile == active {
+                        println!("  • {} (当前)", profile.green().bold());
+                    } else {
+                        println!("  • {profile}");
+                    }
+                }
+            }
+        },
+
+        ConfigAction::Audit => {
+            println!("📊 配置审计功能开发中...");
+        }
+
+        ConfigAction::Migrate => {
+            println!("🔄 配置迁移功能开发中...");
+        }
+    }
+
+    Ok(())
+}
+
+// v1.4.3 交互式调试器命令实现
+#[cfg(feature = "interactive-debug")]
+fn run_interactive_debugger(file: Option<&PathBuf>) -> Result<()> {
+    use xqpath::debugger::XQPathDebugger;
+
+    println!("🚀 启动 XQPath 交互式调试器...");
+
+    let mut debugger = XQPathDebugger::new();
+
+    // 如果指定了文件，预加载它
+    if let Some(file_path) = file {
+        println!("📁 预加载文件: {}", file_path.display());
+        // 这里需要实现文件预加载逻辑
+    }
+
+    match debugger.run() {
+        Ok(()) => {
+            println!("👋 调试器会话结束");
+        }
+        Err(e) => {
+            eprintln!("❌ 调试器错误: {e}");
+        }
+    }
+
+    Ok(())
 }

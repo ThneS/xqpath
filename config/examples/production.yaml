@@ -1,0 +1,23 @@
+# XQPath v1.4.3 生产环境配置
+
+debug:
+  level: warn
+  output: stderr
+  file: "/var/log/xqpath/app.log"
+  timing: false
+
+performance:
+  memory_limit: "512MB"
+  timeout: "30s"
+  cache_size: 500
+  parallel_jobs: 4
+
+paths:
+  cache_dir: "/var/cache/xqpath"
+  log_dir: "/var/log/xqpath"
+  config_dir: "/etc/xqpath"
+
+features:
+  colored_output: false
+  interactive_mode: false
+  auto_backup: false
