@@ -629,6 +629,187 @@ macro_rules! query_length {
     }};
 }
 
+// ===== 调试宏 (v1.4.1+) =====
+
+/// 带调试信息的查询宏
+///
+/// ⚠️ **注意**: 此宏仅在启用 `debug` feature 时可用
+///
+/// # 参数
+/// - `$data`: 输入的数据字符串（JSON 或 YAML 格式）
+/// - `$path`: 路径表达式字符串
+/// - `$debug_callback`: 调试信息回调函数
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "debug")]
+/// use xqpath::query_debug;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "debug")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
+///     let result = query_debug!(data, ".users[*].name", |debug_info: &xqpath::debug::DebugInfo| {
+///         println!("解析耗时: {:?}", debug_info.parse_duration);
+///         println!("执行路径: {}", debug_info.execution_path);
+///     }).unwrap();
+/// }
+/// ```
+#[cfg(feature = "debug")]
+#[macro_export]
+macro_rules! query_debug {
+    ($data:expr, $path:expr, $debug_callback:expr) => {{
+        use std::time::Instant;
+        use $crate::debug::{DebugContext, DebugInfo};
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+
+        (|| -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+            let _debug_ctx = DebugContext::new()
+                .with_timing(true)
+                .with_path_tracing(true);
+
+            let start_time = Instant::now();
+
+            let format = detect_format(&$data)?;
+            let parsed = format.parse(&$data)?;
+            let parse_duration = start_time.elapsed();
+
+            let exec_start = Instant::now();
+            let path = parse_path($path)?;
+            let values = extract(&parsed, &path)?;
+            let exec_duration = exec_start.elapsed();
+
+            let mut debug_info = DebugInfo::default();
+            debug_info.parse_duration = Some(parse_duration);
+            debug_info.execution_duration = Some(exec_duration);
+            debug_info.execution_path = format!("query({})", $path);
+            debug_info.queries_executed = 1;
+
+            $debug_callback(&debug_info);
+
+            let owned_values: Vec<serde_json::Value> =
+                values.into_iter().map(|v| v.clone()).collect();
+
+            Ok(owned_values)
+        })()
+    }};
+}
+
+/// 带性能跟踪的查询宏
+///
+/// ⚠️ **注意**: 此宏仅在启用 `debug` feature 时可用
+///
+/// # 返回值
+/// 返回 `(Result<Vec<serde_json::Value>, Error>, TimingStats)`
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "debug")]
+/// use xqpath::trace_query;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "debug")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}]}"#;
+///     let (result, stats) = trace_query!(data, ".users[*].name").unwrap();
+///     println!("总耗时: {:?}", stats.duration);
+/// }
+/// ```
+#[cfg(feature = "debug")]
+#[macro_export]
+macro_rules! trace_query {
+    ($data:expr, $path:expr) => {{
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+        use $crate::debug::TimingStats;
+        use std::time::Instant;
+
+        (|| -> Result<(Vec<serde_json::Value>, TimingStats), Box<dyn std::error::Error>> {
+            let start_time = Instant::now();
+            let _start_memory = 0; // TODO: 实际内存跟踪
+
+            let format = detect_format(&$data)?;
+            let parsed = format.parse(&$data)?;
+            let path = parse_path($path)?;
+            let values = extract(&parsed, &path)?;
+
+            let duration = start_time.elapsed();
+            let memory_used = 0; // TODO: 计算实际内存使用
+
+            let owned_values: Vec<serde_json::Value> =
+                values.into_iter().map(|v| v.clone()).collect();
+
+            let stats = TimingStats {
+                duration,
+                memory_used,
+                peak_memory: memory_used,
+            };
+
+            Ok((owned_values, stats))
+        })()
+    }};
+}
+
+/// 带性能分析的查询宏
+///
+/// ⚠️ **注意**: 此宏仅在启用 `profiling` feature 时可用
+///
+/// # 返回值
+/// 返回 `(Result<Vec<serde_json::Value>, Error>, ProfileReport)`
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "profiling")]
+/// use xqpath::query_with_profile;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "profiling")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}]}"#;
+///     let (result, profile) = query_with_profile!(data, ".users[*].name").unwrap();
+///     println!("执行时间: {:?}", profile.duration);
+/// }
+/// ```
+#[cfg(feature = "profiling")]
+#[macro_export]
+macro_rules! query_with_profile {
+    ($data:expr, $path:expr) => {{
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+        use std::time::Instant;
+
+        // TODO: 当实现 ProfileReport 时取消注释
+        // use $crate::debug::profiler::ProfileReport;
+
+        (|| -> Result<(Vec<serde_json::Value>, $crate::debug::TimingStats), Box<dyn std::error::Error>> {
+            let start_time = Instant::now();
+
+            let format = detect_format(&$data)?;
+            let parsed = format.parse(&$data)?;
+            let path = parse_path($path)?;
+            let values = extract(&parsed, &path)?;
+
+            let execution_time = start_time.elapsed();
+
+            let owned_values: Vec<serde_json::Value> =
+                values.into_iter().map(|v| v.clone()).collect();
+
+            // 临时使用 TimingStats，后续版本会替换为 ProfileReport
+            let profile = $crate::debug::TimingStats {
+                duration: execution_time,
+                memory_used: 0,
+                peak_memory: 0,
+            };
+
+            Ok((owned_values, profile))
+        })()
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

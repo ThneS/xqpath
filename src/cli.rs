@@ -14,6 +14,8 @@ use xqpath::{
 #[cfg(feature = "update")]
 use xqpath::update;
 
+// 调试功能导入 (v1.4.1+)
+
 /// XQPath - A minimal jq-like path extractor and updater for structured data
 #[derive(Parser)]
 #[command(name = "xqpath")]
@@ -26,6 +28,42 @@ struct Cli {
     /// Subcommand to execute
     #[command(subcommand)]
     command: Commands,
+
+    // 全局调试选项 (v1.4.1+)
+    /// Enable debug mode
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true)]
+    debug: bool,
+
+    /// Set log level
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true, value_enum)]
+    log_level: Option<DebugLogLevel>,
+
+    /// Log to file
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true, value_name = "FILE")]
+    log_file: Option<PathBuf>,
+
+    /// Show execution timing
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true)]
+    timing: bool,
+
+    /// Enable path tracing
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true)]
+    trace_path: bool,
+
+    /// Show memory statistics
+    #[cfg(feature = "debug")]
+    #[arg(long, global = true)]
+    memory_stats: bool,
+
+    /// Enable profiling
+    #[cfg(feature = "profiling")]
+    #[arg(long, global = true)]
+    profile: bool,
 }
 
 #[derive(Subcommand)]
@@ -230,6 +268,48 @@ enum Commands {
 
     /// Show examples of usage
     Examples,
+
+    // 调试命令 (v1.4.1+)
+    /// Debug mode execution with detailed tracing
+    #[cfg(feature = "debug")]
+    Debug {
+        /// Path expression (jq-style syntax)
+        path: String,
+
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Enable interactive debug mode
+        #[arg(long)]
+        interactive: bool,
+    },
+
+    /// Trace path execution
+    #[cfg(feature = "debug")]
+    Trace {
+        /// Path expression (jq-style syntax)
+        path: String,
+
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Show detailed execution steps
+        #[arg(long)]
+        detailed: bool,
+    },
+}
+
+// 调试日志级别
+#[cfg(feature = "debug")]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum DebugLogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -362,6 +442,18 @@ fn run_command(cli: &Cli) -> Result<()> {
             ..
         } => run_convert(to, file.as_ref(), *pretty, *verbose),
         Commands::Examples => run_examples(),
+        #[cfg(feature = "debug")]
+        Commands::Debug { .. } => {
+            println!("🔍 调试功能暂未在CLI中实现");
+            println!("请使用库API中的调试宏: query_debug!, trace_query!");
+            Ok(())
+        }
+        #[cfg(feature = "debug")]
+        Commands::Trace { .. } => {
+            println!("📊 跟踪功能暂未在CLI中实现");
+            println!("请使用库API中的调试宏: query_debug!, trace_query!");
+            Ok(())
+        }
     }
 }
 

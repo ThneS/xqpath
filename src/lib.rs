@@ -26,6 +26,29 @@
 //! assert_eq!(exists, false);
 //! ```
 //!
+//! ### 调试功能（v1.4.1+）
+//!
+//! ```rust
+//! #[cfg(feature = "debug")]
+//! use xqpath::{query_debug, trace_query, DebugContext};
+//! use serde_json::json;
+//!
+//! #[cfg(feature = "debug")]
+//! fn debug_example() {
+//!     let data = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
+//!
+//!     // 带调试信息的查询
+//!     let result = query_debug!(data, ".users[*].name", |debug_info: &xqpath::debug::DebugInfo| {
+//!         println!("解析耗时: {:?}", debug_info.parse_duration);
+//!         println!("执行路径: {}", debug_info.execution_path);
+//!     }).unwrap();
+//!
+//!     // 性能跟踪查询
+//!     let (result, stats) = trace_query!(data, ".users[*].name").unwrap();
+//!     println!("总耗时: {:?}", stats.duration);
+//! }
+//! ```
+//!
 //! ### 更新操作（需要 update feature）
 //!
 //! ```rust
@@ -47,6 +70,7 @@
 //! - **通配符**: 支持字段和递归匹配
 //! - **类型过滤**: 支持类型断言和过滤
 //! - **更新功能**: 支持路径指定位置的更新（feature gate）
+//! - **调试支持**: 结构化日志和性能跟踪（feature gate）
 //! - **轻量级**: 最小依赖集，高性能
 
 #[macro_use]
@@ -59,6 +83,10 @@ pub mod parser;
 pub mod updater;
 pub mod value;
 
+// 调试模块 (v1.4.1+)
+#[cfg(feature = "debug")]
+pub mod debug;
+
 // 重新导出主要类型和函数
 pub use extractor::{
     extract, ConfigurableExtractor, ExtractError, Extractor, ExtractorConfig,
@@ -67,6 +95,23 @@ pub use extractor::{
 #[cfg(feature = "update")]
 pub use updater::{
     update, ConfigurableUpdater, UpdateError, Updater, UpdaterConfig,
+};
+
+// 调试功能导出
+#[cfg(feature = "debug")]
+pub use debug::{
+    DebugCapable, DebugConfig, DebugContext, DebugInfo, LogLevel, TimingStats,
+};
+
+#[cfg(feature = "debug")]
+pub use debug::logger::{Logger, LoggerConfig};
+
+#[cfg(feature = "debug")]
+pub use debug::tracer::{ExecutionSummary, TraceEvent, TraceResult, Tracer};
+
+#[cfg(feature = "debug")]
+pub use debug::reporter::{
+    DiagnosticInfo, EnhancedError, ErrorReporter, ErrorType, FixSuggestion,
 };
 
 pub use parser::{
@@ -95,4 +140,9 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// 检查是否启用了更新功能
 pub const fn has_update_feature() -> bool {
     cfg!(feature = "update")
+}
+
+/// 检查是否启用了调试功能
+pub const fn has_debug_feature() -> bool {
+    cfg!(feature = "debug")
 }

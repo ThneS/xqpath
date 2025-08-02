@@ -8,7 +8,9 @@
 
 ## 🎯 概述
 
-XQPath v1.3.2 是一个用于结构化数据（JSON/YAML）路径提取与操作的高性能 Rust 工具，提供 jq 风格的表达式语法和现代化的命令行体验。
+# XQPath v1.4.1
+
+一个高性能的 jq 风格结构化数据路径提取和更新库，提供完整的调试和性能分析功能。
 
 ### 双重形态
 
@@ -142,12 +144,11 @@ xqpath get '.data' -f file.json --no-color --verbose
 # 字段访问
 .field              # 获取字段
 .nested.field       # 嵌套字段访问
-.field?             # 可选字段（不存在时返回 null）
 
 # 数组操作
 [0]                 # 数组索引
 [*]                 # 数组通配符
-[-1]                # 负索引（最后一个元素）
+[]                  # 空数组（视为通配符）
 
 # 组合操作
 .users[*].name      # 获取所有用户名
@@ -157,27 +158,26 @@ xqpath get '.data' -f file.json --no-color --verbose
 ### 高级表达式
 
 ```bash
-# 管道操作
-.users | length()           # 获取数组长度
-.users | map(.name)         # 映射操作
-.users | select(.active)    # 条件过滤
-
-# 条件表达式
-if .age >= 30 then "senior" else "junior" end
+# 管道操作（基础支持）
+.users | length             # 获取数组长度
+.users[0] | keys            # 获取对象键名
+.users | type               # 获取值类型
 
 # 比较操作
-.users | select(.age > 25)
+.users | select(.age > 25)  # 条件过滤（语法支持）
 .items | select(.price <= 100)
+
+# 注意：部分高级功能仍在开发中
 ```
 
 ### 内置函数
 
-- `length()` - 获取长度（数组、对象、字符串）
-- `keys()` - 获取对象键名或数组索引
-- `type()` - 获取值类型
-- `map(expr)` - 数组映射
-- `select(condition)` - 条件过滤
-- `sort()`, `sort_by(expr)` - 排序操作
+- `length` - 获取长度（数组、对象、字符串）
+- `keys` - 获取对象键名或数组索引
+- `type` - 获取值类型
+- `map(expr)` - 数组映射（语法支持，实现开发中）
+- `select(condition)` - 条件过滤（语法支持，实现开发中）
+- `sort()`, `sort_by(expr)` - 排序操作（计划中）
 
 ## 🔧 实用宏系统
 
@@ -206,35 +206,29 @@ let has_all = exists_all!(data, ".name", ".email", ".age")?;
 ### 复杂数据处理
 
 ```rust
-use xqpath::{parse_path_expression, evaluate_path_expression};
+use xqpath::{parse_path_expression, evaluate_path_expression, query};
 
-// 聚合查询示例
-let expr = parse_path_expression("
-    .orders
-    | select(.status == "completed")
-    | map(.amount)
-    | add
-")?;
+// 基础表达式示例
+let expr = parse_path_expression(".users[*].name")?;
+let result = evaluate_path_expression(&expr, &data)?;
 
-// 条件过滤和映射
-let active_users = parse_path_expression("
-    .users
-    | select(.active)
-    | map(.name)
-")?;
+// 使用便利宏（推荐）
+let names = query!(data_str, ".users[*].name")?;
+
+// 注意：高级聚合和条件查询功能正在开发中
 ```
 
 ### 错误处理
 
 ```rust
-// 使用 try-catch 处理可能不存在的路径
-let expr = parse_path_expression("
-    try .config.database.url
-    catch "sqlite://default.db"
-")?;
+// 查询不存在的字段（返回 None）
+let optional_field = query_one!(data, ".user.email")?;
 
-// 使用可选操作符
-let optional_field = query_one!(data, ".user.email?")?;
+// 标准错误处理
+match query!(data_str, ".some.path") {
+    Ok(result) => println!("Found: {:?}", result),
+    Err(e) => eprintln!("Error: {}", e),
+}
 ```
 
 ## 🎯 v1.3.2 新特性总结
@@ -248,6 +242,7 @@ let optional_field = query_one!(data, ".user.email?")?;
 
 - **[完整文档](docs/README.md)** - 详细的 API 文档和指南
 - **[功能示例](examples/)** - 各种使用示例
+- **[实用脚本](scripts/)** - 开发和维护脚本
 - **[GitHub 仓库](https://github.com/ThneS/xqpath)** - 源码和问题反馈
 
 ## 🤝 贡献与许可证
@@ -257,7 +252,3 @@ let optional_field = query_one!(data, ".user.email?")?;
 ---
 
 **XQPath v1.3.2** - 让结构化数据处理变得简单高效 🚀
-
-```
-
-```
