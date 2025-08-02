@@ -136,3 +136,45 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,rust,rust-analyzer,visualstudiocode,windows,linux,vim
+
+# XQPath 项目特定忽略规则
+# 性能报告文件
+benchmark_report.html
+performance_report.html
+*.bench
+*.perf
+
+# Criterion 基准测试输出
+target/criterion/
+
+# 临时和缓存文件
+*.tmp
+*.cache
+.cache/
+
+# 调试和分析文件
+*.log
+*.prof
+debug_output/
+analysis_results/
+
+# 项目特定的临时文件
+*_report.html
+*_verification_report.md
+CLEANUP_REPORT.md
+test*.json
+users.json
+
+# IDE 和编辑器
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统生成的文件
+.directory
+desktop.ini
+
+# 测试输出
+test_results/
+coverage/

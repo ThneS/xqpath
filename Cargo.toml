@@ -1,9 +1,9 @@
 [package]
 name = "xqpath"
-version = "1.4.1"
+version = "1.4.2"
 edition = "2021"
 authors = ["Thne"]
-description = "A high-performance jq-inspired path extractor and updater for structured data in Rust with advanced debugging capabilities"
+description = "A high-performance jq-inspired path extractor and updater for structured data in Rust with advanced debugging and performance monitoring capabilities"
 license = "Apache-2.0"
 repository = "https://github.com/ThneS/xqpath"
 keywords = ["json", "yaml", "path", "query", "jq"]
@@ -42,6 +42,7 @@ pprof = { version = "0.13", optional = true, features = [
     "flamegraph",
     "protobuf-codec",
 ] }
+criterion = { version = "0.5", optional = true, features = ["html_reports"] }
 
 # 监控依赖 (v1.4.3)
 tokio = { version = "1.0", optional = true, features = ["full"] }
@@ -61,7 +62,7 @@ update = ["serde_json/preserve_order"]
 debug = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-appender"]
 
 # 性能分析功能 (v1.4.2)
-profiling = ["debug", "dep:sysinfo", "dep:pprof"]
+profiling = ["debug", "dep:sysinfo", "dep:pprof", "dep:criterion"]
 benchmark = ["profiling"]
 
 # 监控功能 (v1.4.3)
@@ -78,4 +79,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "performance"
+harness = false
+
+[[bench]]
+name = "advanced_benchmarks"
 harness = false

@@ -770,7 +770,7 @@ macro_rules! trace_query {
 /// fn example() {
 ///     let data = r#"{"users": [{"name": "Alice"}]}"#;
 ///     let (result, profile) = query_with_profile!(data, ".users[*].name").unwrap();
-///     println!("执行时间: {:?}", profile.duration);
+///     println!("执行时间: {:?}", profile.execution_time);
 /// }
 /// ```
 #[cfg(feature = "profiling")]
@@ -782,28 +782,218 @@ macro_rules! query_with_profile {
         use $crate::value::format::detect_format;
         use std::time::Instant;
 
-        // TODO: 当实现 ProfileReport 时取消注释
-        // use $crate::debug::profiler::ProfileReport;
+        #[cfg(feature = "profiling")]
+        {
+            (|| -> Result<(Vec<serde_json::Value>, $crate::debug::profiler::ProfileReport), Box<dyn std::error::Error>> {
+                use $crate::debug::profiler::PerformanceMonitor;
 
-        (|| -> Result<(Vec<serde_json::Value>, $crate::debug::TimingStats), Box<dyn std::error::Error>> {
-            let start_time = Instant::now();
+                let mut monitor = PerformanceMonitor::new();
+                monitor.start();
+
+                let format = detect_format(&$data)?;
+                let parsed = format.parse(&$data)?;
+                let path = parse_path($path)?;
+                let values = extract(&parsed, &path)?;
+
+                let profile = monitor.stop();
+
+                let owned_values: Vec<serde_json::Value> =
+                    values.into_iter().map(|v| v.clone()).collect();
+
+                Ok((owned_values, profile))
+            })()
+        }
+
+        #[cfg(not(feature = "profiling"))]
+        {
+            (|| -> Result<(Vec<serde_json::Value>, $crate::debug::TimingStats), Box<dyn std::error::Error>> {
+                let start_time = Instant::now();
+
+                let format = detect_format(&$data)?;
+                let parsed = format.parse(&$data)?;
+                let path = parse_path($path)?;
+                let values = extract(&parsed, &path)?;
+
+                let execution_time = start_time.elapsed();
+
+                let owned_values: Vec<serde_json::Value> =
+                    values.into_iter().map(|v| v.clone()).collect();
+
+                // 当 profiling feature 未启用时，返回基础的 TimingStats
+                let profile = $crate::debug::TimingStats {
+                    duration: execution_time,
+                    memory_used: 0,
+                    peak_memory: 0,
+                };
+
+                Ok((owned_values, profile))
+            })()
+        }
+    }};
+}
+
+// ===== v1.4.2 性能分析宏 =====
+
+/// 内存分析宏 - 专注于内存使用监控
+///
+/// ⚠️ **注意**: 此宏仅在启用 `profiling` feature 时可用
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "profiling")]
+/// use xqpath::query_memory;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "profiling")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}]}"#;
+///     let (result, memory_report) = query_memory!(data, ".users[*].name").unwrap();
+///     println!("峰值内存: {} MB", memory_report.peak_memory_bytes as f64 / 1024.0 / 1024.0);
+/// }
+/// ```
+#[cfg(feature = "profiling")]
+#[macro_export]
+macro_rules! query_memory {
+    ($data:expr, $path:expr) => {{
+        use $crate::debug::profiler::MemoryProfiler;
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+
+        (|| -> Result<(Vec<serde_json::Value>, $crate::debug::profiler::ProfileReport), Box<dyn std::error::Error>> {
+            let mut profiler = MemoryProfiler::new();
+            profiler.start();
 
             let format = detect_format(&$data)?;
             let parsed = format.parse(&$data)?;
             let path = parse_path($path)?;
             let values = extract(&parsed, &path)?;
 
-            let execution_time = start_time.elapsed();
+            let memory_report = profiler.stop();
 
             let owned_values: Vec<serde_json::Value> =
                 values.into_iter().map(|v| v.clone()).collect();
 
-            // 临时使用 TimingStats，后续版本会替换为 ProfileReport
-            let profile = $crate::debug::TimingStats {
-                duration: execution_time,
-                memory_used: 0,
-                peak_memory: 0,
+            Ok((owned_values, memory_report))
+        })()
+    }};
+}
+
+/// 基准测试宏 - 自动运行性能基准测试
+///
+/// ⚠️ **注意**: 此宏仅在启用 `benchmark` feature 时可用
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "benchmark")]
+/// use xqpath::benchmark_query;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "benchmark")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}]}"#;
+///     let (result, benchmark_result) = benchmark_query!(data, ".users[*].name", 100).unwrap();
+///     println!("平均执行时间: {:?}", benchmark_result.mean_time);
+/// }
+/// ```
+#[cfg(feature = "benchmark")]
+#[macro_export]
+macro_rules! benchmark_query {
+    ($data:expr, $path:expr, $iterations:expr) => {{
+        use $crate::debug::benchmark::{BenchmarkSuite, BenchmarkConfig};
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+        use std::time::Duration;
+
+        (|| -> Result<(Vec<serde_json::Value>, $crate::debug::benchmark::BenchmarkResult), Box<dyn std::error::Error>> {
+            // 先执行一次获取结果
+            let format = detect_format(&$data)?;
+            let parsed = format.parse(&$data)?;
+            let path = parse_path($path)?;
+            let values = extract(&parsed, &path)?;
+            let owned_values: Vec<serde_json::Value> =
+                values.into_iter().map(|v| v.clone()).collect();
+
+            // 设置基准测试
+            let config = BenchmarkConfig {
+                warmup_iterations: ($iterations as f64 * 0.1) as usize,
+                test_iterations: $iterations,
+                min_test_time: Duration::from_millis(10),
+                max_test_time: Duration::from_secs(30),
             };
+
+            let mut suite = BenchmarkSuite::with_config(config);
+
+            let data_clone = $data.to_string();
+            let path_clone = $path.to_string();
+
+            suite.add_test("query_benchmark", move || {
+                let format = detect_format(&data_clone)?;
+                let parsed = format.parse(&data_clone)?;
+                let path = parse_path(&path_clone)?;
+                let _values = extract(&parsed, &path)?;
+                Ok(())
+            });
+
+            let mut results = suite.run()?;
+            let benchmark_result = results.pop().unwrap();
+
+            Ok((owned_values, benchmark_result))
+        })()
+    }};
+}
+
+/// 完整性能分析宏 - 综合性能、内存、基准测试
+///
+/// ⚠️ **注意**: 此宏仅在启用 `profiling` feature 时可用
+///
+/// # 示例
+/// ```rust
+/// #[cfg(feature = "profiling")]
+/// use xqpath::profile_complete;
+/// use serde_json::json;
+///
+/// #[cfg(feature = "profiling")]
+/// fn example() {
+///     let data = r#"{"users": [{"name": "Alice"}]}"#;
+///     let (result, profile) = profile_complete!(data, ".users[*].name").unwrap();
+///     println!("完整性能报告: {}", profile.summary());
+/// }
+/// ```
+#[cfg(feature = "profiling")]
+#[macro_export]
+macro_rules! profile_complete {
+    ($data:expr, $path:expr) => {{
+        use $crate::debug::profiler::PerformanceMonitor;
+        use $crate::extractor::extract;
+        use $crate::parser::path::parse_path;
+        use $crate::value::format::detect_format;
+
+        (|| -> Result<(Vec<serde_json::Value>, $crate::debug::profiler::ProfileReport), Box<dyn std::error::Error>> {
+            let mut monitor = PerformanceMonitor::new();
+            monitor.start();
+
+            let format = detect_format(&$data)?;
+            let parsed = format.parse(&$data)?;
+            let path = parse_path($path)?;
+            let values = extract(&parsed, &path)?;
+
+            let mut profile = monitor.stop();
+
+            // 添加路径复杂度分析
+            let path_complexity = $path.split('.').count() + $path.matches('[').count() * 2;
+            profile.add_metric("path_complexity", path_complexity as f64);
+
+            // 添加数据大小分析
+            let data_size = $data.len();
+            profile.add_metric("data_size_kb", data_size as f64 / 1024.0);
+
+            // 添加结果数量分析
+            profile.add_metric("result_count", values.len() as f64);
+
+            let owned_values: Vec<serde_json::Value> =
+                values.into_iter().map(|v| v.clone()).collect();
 
             Ok((owned_values, profile))
         })()

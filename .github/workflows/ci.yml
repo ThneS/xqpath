@@ -38,12 +38,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           # 添加缓存键以确保新模块结构被正确识别
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-debug-v1.4.1
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-debug-v1.4.2
 
-      - name: 清理并检查代码格式
+      - name: 检查代码格式
         run: |
-          # 清理可能的缓存问题
-          cargo clean
           # 需要启用所有 features 来确保条件编译的模块能被正确识别
           cargo check --all-features
           cargo fmt --all -- --check

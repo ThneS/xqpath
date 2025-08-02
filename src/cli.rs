@@ -14,8 +14,6 @@ use xqpath::{
 #[cfg(feature = "update")]
 use xqpath::update;
 
-// 调试功能导入 (v1.4.1+)
-
 /// XQPath - A minimal jq-like path extractor and updater for structured data
 #[derive(Parser)]
 #[command(name = "xqpath")]
@@ -299,6 +297,88 @@ enum Commands {
         #[arg(long)]
         detailed: bool,
     },
+
+    // 性能分析命令 (v1.4.2+)
+    /// Performance profiling with detailed metrics
+    #[cfg(feature = "profiling")]
+    Profile {
+        /// Path expression (jq-style syntax)
+        path: String,
+
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Generate HTML report
+        #[arg(long)]
+        html: bool,
+
+        /// Output file for the report
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+
+        /// Include memory analysis
+        #[arg(long)]
+        memory: bool,
+
+        /// Show optimization hints
+        #[arg(long)]
+        hints: bool,
+    },
+
+    /// Benchmark query performance
+    #[cfg(feature = "benchmark")]
+    Benchmark {
+        /// Path expression (jq-style syntax)
+        path: String,
+
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Number of iterations
+        #[arg(short, long, default_value = "100")]
+        iterations: usize,
+
+        /// Warmup iterations
+        #[arg(long, default_value = "10")]
+        warmup: usize,
+
+        /// Output format for benchmark results
+        #[arg(long, value_enum, default_value_t = BenchmarkOutputFormat::Text)]
+        format: BenchmarkOutputFormat,
+
+        /// Output file for the benchmark results
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+
+        /// Compare with baseline file
+        #[arg(long, value_name = "FILE")]
+        baseline: Option<PathBuf>,
+    },
+
+    /// Monitor performance metrics in real-time
+    #[cfg(feature = "profiling")]
+    Monitor {
+        /// Path expression (jq-style syntax)
+        path: String,
+
+        /// Input file (reads from stdin if not specified)
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Monitoring duration in seconds
+        #[arg(short, long, default_value = "60")]
+        duration: u64,
+
+        /// Update interval in milliseconds
+        #[arg(long, default_value = "1000")]
+        interval: u64,
+
+        /// Generate continuous reports
+        #[arg(long)]
+        continuous: bool,
+    },
 }
 
 // 调试日志级别
@@ -310,6 +390,20 @@ enum DebugLogLevel {
     Info,
     Warn,
     Error,
+}
+
+// 基准测试输出格式 (v1.4.2+)
+#[cfg(feature = "benchmark")]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum BenchmarkOutputFormat {
+    /// Plain text output
+    Text,
+    /// JSON format
+    Json,
+    /// HTML report
+    Html,
+    /// CSV format
+    Csv,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -332,6 +426,10 @@ impl OutputFormat {
 
 fn main() {
     let cli = Cli::parse();
+
+    // 初始化调试系统 (v1.4.1+)
+    #[cfg(feature = "debug")]
+    initialize_debug_system(&cli);
 
     // 设置颜色输出 (针对每个命令的no_color参数)
     let no_color = match &cli.command {
@@ -375,6 +473,47 @@ fn main() {
             eprintln!("{} {}", "Error:".red().bold(), e);
         }
         std::process::exit(1);
+    }
+}
+
+// v1.4.1 调试系统初始化
+
+#[cfg(feature = "debug")]
+fn initialize_debug_system(cli: &Cli) {
+    // 设置日志级别
+    if let Some(level) = cli.log_level {
+        match level {
+            DebugLogLevel::Trace => println!("🔍 Debug level set to: TRACE"),
+            DebugLogLevel::Debug => println!("🔍 Debug level set to: DEBUG"),
+            DebugLogLevel::Info => println!("🔍 Debug level set to: INFO"),
+            DebugLogLevel::Warn => println!("🔍 Debug level set to: WARN"),
+            DebugLogLevel::Error => println!("🔍 Debug level set to: ERROR"),
+        }
+    }
+
+    // 设置日志文件
+    if let Some(log_file) = &cli.log_file {
+        println!("📝 Logging to file: {}", log_file.display());
+    }
+
+    // 启用调试模式
+    if cli.debug {
+        println!("🐛 Debug mode enabled");
+    }
+
+    // 启用时间统计
+    if cli.timing {
+        println!("⏱️  Timing enabled");
+    }
+
+    // 启用路径跟踪
+    if cli.trace_path {
+        println!("📊 Path tracing enabled");
+    }
+
+    // 启用内存统计
+    if cli.memory_stats {
+        println!("💾 Memory statistics enabled");
     }
 }
 
@@ -443,16 +582,61 @@ fn run_command(cli: &Cli) -> Result<()> {
         } => run_convert(to, file.as_ref(), *pretty, *verbose),
         Commands::Examples => run_examples(),
         #[cfg(feature = "debug")]
-        Commands::Debug { .. } => {
-            println!("🔍 调试功能暂未在CLI中实现");
-            println!("请使用库API中的调试宏: query_debug!, trace_query!");
-            Ok(())
-        }
+        Commands::Debug {
+            path,
+            file,
+            interactive,
+        } => run_debug(path, file.as_ref(), *interactive),
         #[cfg(feature = "debug")]
-        Commands::Trace { .. } => {
-            println!("📊 跟踪功能暂未在CLI中实现");
-            println!("请使用库API中的调试宏: query_debug!, trace_query!");
-            Ok(())
+        Commands::Trace {
+            path,
+            file,
+            detailed,
+        } => run_trace(path, file.as_ref(), *detailed),
+        // v1.4.2 性能分析命令
+        #[cfg(feature = "profiling")]
+        Commands::Profile {
+            path,
+            file,
+            html,
+            output,
+            memory,
+            hints,
+        } => run_profile(
+            path,
+            file.as_ref(),
+            *html,
+            output.as_ref(),
+            *memory,
+            *hints,
+        ),
+        #[cfg(feature = "benchmark")]
+        Commands::Benchmark {
+            path,
+            file,
+            iterations,
+            warmup,
+            format,
+            output,
+            baseline,
+        } => run_benchmark(
+            path,
+            file.as_ref(),
+            *iterations,
+            *warmup,
+            format,
+            output.as_ref(),
+            baseline.as_ref(),
+        ),
+        #[cfg(feature = "profiling")]
+        Commands::Monitor {
+            path,
+            file,
+            duration,
+            interval,
+            continuous,
+        } => {
+            run_monitor(path, file.as_ref(), *duration, *interval, *continuous)
         }
     }
 }
@@ -546,11 +730,18 @@ fn run_get(
     pretty: bool,
     verbose: bool,
 ) -> Result<()> {
+    let start_time = std::time::Instant::now();
     let input = read_input(file)?;
     let (format, values) = parse_and_extract(&input, path)?;
 
     if verbose {
         eprintln!("{} Found {} value(s)", "Info:".blue().bold(), values.len());
+        let duration = start_time.elapsed();
+        eprintln!(
+            "{} Execution time: {:?}",
+            "Timing:".green().bold(),
+            duration
+        );
     }
 
     output_values(&values, format.as_ref(), output, pretty)?;
@@ -895,6 +1086,61 @@ fn run_examples() -> Result<()> {
     );
     println!();
 
+    // v1.4.2 性能分析功能示例
+    #[cfg(any(feature = "profiling", feature = "benchmark"))]
+    {
+        println!("{}", "Performance Analysis (v1.4.2):".bold());
+
+        #[cfg(feature = "profiling")]
+        {
+            println!("  {} Profile query performance:", "•".magenta());
+            println!(
+                "    {}",
+                "xqpath profile '.users[*].name' -f data.json".dimmed()
+            );
+            println!(
+                "    {}",
+                "xqpath profile '.data' --memory --hints".dimmed()
+            );
+            println!(
+                "    {}",
+                "xqpath profile '.complex' --html -o report.html".dimmed()
+            );
+            println!();
+
+            println!("  {} Monitor real-time performance:", "•".magenta());
+            println!(
+                "    {}",
+                "xqpath monitor '.users[*]' -f data.json -d 30".dimmed()
+            );
+            println!(
+                "    {}",
+                "xqpath monitor '.data' --interval 500 --continuous".dimmed()
+            );
+            println!();
+        }
+
+        #[cfg(feature = "benchmark")]
+        {
+            println!("  {} Benchmark query performance:", "•".magenta());
+            println!(
+                "    {}",
+                "xqpath benchmark '.users[*].name' -f data.json".dimmed()
+            );
+            println!(
+                "    {}",
+                "xqpath benchmark '.data' -i 1000 --format html -o bench.html"
+                    .dimmed()
+            );
+            println!(
+                "    {}",
+                "xqpath benchmark '.query' --baseline prev_results.json"
+                    .dimmed()
+            );
+            println!();
+        }
+    }
+
     println!("{}", "Path Syntax:".bold());
     println!("  {} Object field access:", "•".green());
     println!("    {}", ".field, .nested.field".dimmed());
@@ -933,5 +1179,417 @@ fn get_output_format(format_name: &str) -> Result<Box<dyn ValueFormat>> {
             "Unsupported output format: {}",
             format_name
         )),
+    }
+}
+
+// v1.4.2 性能分析命令实现
+
+#[cfg(feature = "profiling")]
+fn run_profile(
+    path: &str,
+    file: Option<&PathBuf>,
+    html: bool,
+    output: Option<&PathBuf>,
+    memory: bool,
+    hints: bool,
+) -> Result<()> {
+    use xqpath::{profile_complete, query_memory};
+
+    let input = read_input(file)?;
+
+    println!("{}", "🔍 Performance Profiling".bold().blue());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    if memory {
+        let (_result, memory_report) = query_memory!(input, path)
+            .map_err(|e| anyhow::anyhow!("Memory query failed: {}", e))?;
+        println!("✅ Query executed successfully");
+        println!("📊 Memory Analysis:");
+        println!(
+            "   Peak Memory: {:.2} MB",
+            memory_report.peak_memory_bytes as f64 / 1024.0 / 1024.0
+        );
+        println!(
+            "   Current Memory: {:.2} MB",
+            memory_report.current_memory_bytes as f64 / 1024.0 / 1024.0
+        );
+
+        if let Some(efficiency) = memory_report.metrics.get("memory_efficiency")
+        {
+            println!("   Memory Efficiency: {efficiency:.1}%");
+        }
+    } else {
+        let (_result, profile) = profile_complete!(input, path)
+            .map_err(|e| anyhow::anyhow!("Profile query failed: {}", e))?;
+        println!("✅ Query executed successfully");
+        println!("📊 Performance Metrics:");
+        println!("   Execution Time: {:?}", profile.execution_time);
+        println!(
+            "   Peak Memory: {:.2} MB",
+            profile.peak_memory_bytes as f64 / 1024.0 / 1024.0
+        );
+        println!("   CPU Usage: {:.1}%", profile.cpu_usage_percent);
+
+        if hints && !profile.optimization_hints.is_empty() {
+            println!("\n💡 Optimization Hints:");
+            for hint in &profile.optimization_hints {
+                println!("   • {hint}");
+            }
+        }
+
+        if html {
+            let output_path = output
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("profile_report.html"));
+
+            std::fs::write(&output_path, profile.to_html())
+                .context("Failed to write HTML report")?;
+
+            println!("\n📄 HTML report saved to: {}", output_path.display());
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "benchmark")]
+fn run_benchmark(
+    path: &str,
+    file: Option<&PathBuf>,
+    iterations: usize,
+    warmup: usize,
+    format: &BenchmarkOutputFormat,
+    output: Option<&PathBuf>,
+    baseline: Option<&PathBuf>,
+) -> Result<()> {
+    use std::time::Duration;
+    use xqpath::{
+        benchmark_query, BenchmarkConfig,
+        BenchmarkOutputFormat as LibBenchmarkFormat, BenchmarkSuite,
+    };
+
+    let input = read_input(file)?;
+
+    println!("{}", "⚡ Performance Benchmark".bold().yellow());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // 快速基准测试
+    let (_result, benchmark_result) = benchmark_query!(input, path, iterations)
+        .map_err(|e| anyhow::anyhow!("Benchmark query failed: {}", e))?;
+    println!("✅ Query executed successfully");
+    println!("📊 Quick Benchmark Results:");
+    println!("   {}", benchmark_result.summary());
+
+    // 详细基准测试套件
+    let config = BenchmarkConfig {
+        warmup_iterations: warmup,
+        test_iterations: iterations,
+        min_test_time: Duration::from_millis(10),
+        max_test_time: Duration::from_secs(30),
+    };
+
+    let mut suite = BenchmarkSuite::with_config(config);
+    let input_clone = input.clone();
+    let path_clone = path.to_string();
+
+    suite.add_test("query_benchmark", move || {
+        let _result = xqpath::query!(input_clone, &path_clone)?;
+        Ok(())
+    });
+
+    let results = suite
+        .run()
+        .map_err(|e| anyhow::anyhow!("Suite run failed: {}", e))?;
+
+    println!("\n📊 Detailed Benchmark Results:");
+    for result in &results {
+        println!("   {}", result.summary());
+    }
+
+    // 保存结果
+    if let Some(output_path) = output {
+        let lib_format = match format {
+            BenchmarkOutputFormat::Text => LibBenchmarkFormat::Json, // 使用JSON作为Text的替代
+            BenchmarkOutputFormat::Json => LibBenchmarkFormat::Json,
+            BenchmarkOutputFormat::Html => LibBenchmarkFormat::Html,
+            BenchmarkOutputFormat::Csv => LibBenchmarkFormat::Csv,
+        };
+
+        BenchmarkSuite::save_results_to_file(
+            &results,
+            output_path
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("Invalid output path"))?,
+            lib_format,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to save results: {}", e))?;
+        println!("\n📄 Benchmark results saved to: {}", output_path.display());
+    }
+
+    // 比较基准线
+    if let Some(baseline_path) = baseline {
+        println!("\n📈 Baseline comparison not yet implemented");
+        println!("   Baseline file: {}", baseline_path.display());
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "profiling")]
+fn run_monitor(
+    path: &str,
+    file: Option<&PathBuf>,
+    duration: u64,
+    interval: u64,
+    continuous: bool,
+) -> Result<()> {
+    use std::thread;
+    use std::time::{Duration, Instant};
+    use xqpath::{query, PerformanceMonitor};
+
+    let input = read_input(file)?;
+
+    println!("{}", "📊 Performance Monitor".bold().green());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Duration: {duration} seconds, Interval: {interval} ms");
+    println!("Path: {path}");
+    println!();
+
+    let mut monitor = PerformanceMonitor::new();
+    monitor.start();
+
+    let start_time = Instant::now();
+    let total_duration = Duration::from_secs(duration);
+    let update_interval = Duration::from_millis(interval);
+
+    let mut iteration = 0;
+
+    while start_time.elapsed() < total_duration {
+        // 执行查询
+        let query_start = Instant::now();
+        let _result = query!(input, path)
+            .map_err(|e| anyhow::anyhow!("Monitor query failed: {}", e))?;
+        let query_time = query_start.elapsed();
+
+        // 获取当前指标
+        let metrics = monitor.get_current_metrics();
+
+        iteration += 1;
+        println!("Iteration {iteration}: Query time: {query_time:?}");
+
+        if continuous {
+            for (name, value) in metrics {
+                println!("  {name}: {value:.2}");
+            }
+            println!();
+        }
+
+        thread::sleep(update_interval);
+    }
+
+    let final_report = monitor.stop();
+
+    println!("🏁 Final Performance Report:");
+    println!("   Total iterations: {iteration}");
+    println!("   {}", final_report.summary());
+
+    // 保存最终报告
+    let report_path = PathBuf::from("monitor_report.html");
+    std::fs::write(&report_path, final_report.to_html())
+        .context("Failed to write monitor report")?;
+
+    println!("\n📄 Monitor report saved to: {}", report_path.display());
+
+    Ok(())
+}
+
+// v1.4.1 调试命令实现
+
+#[cfg(feature = "debug")]
+fn run_debug(
+    path: &str,
+    file: Option<&PathBuf>,
+    interactive: bool,
+) -> Result<()> {
+    use xqpath::query_debug;
+
+    let input = read_input(file)?;
+
+    println!("{}", "🔍 Debug Mode Execution".bold().blue());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Path: {path}");
+    if let Some(file_path) = file {
+        println!("Input: {}", file_path.display());
+    } else {
+        println!("Input: stdin");
+    }
+    println!();
+
+    if interactive {
+        println!("🎯 Interactive Debug Mode");
+        println!("Type 'help' for commands, 'quit' to exit");
+        // TODO: 实现交互式调试模式
+        println!("⚠️  Interactive mode will be implemented in future version");
+        println!();
+    }
+
+    // 执行调试查询
+    println!("🚀 Executing debug query...");
+    let result =
+        query_debug!(input, path, |debug_info: &xqpath::debug::DebugInfo| {
+            println!("🔍 Debug Info:");
+            if let Some(parse_time) = debug_info.parse_duration {
+                println!("   Parse time: {parse_time:?}");
+            }
+            if let Some(exec_time) = debug_info.execution_duration {
+                println!("   Execution time: {exec_time:?}");
+            }
+            if !debug_info.execution_path.is_empty() {
+                println!("   Execution path: {}", debug_info.execution_path);
+            }
+            if let Some(memory) = debug_info.memory_used {
+                println!("   Memory used: {memory} bytes");
+            }
+            println!("   Queries executed: {}", debug_info.queries_executed);
+        });
+
+    match result {
+        Ok(values) => {
+            println!("✅ Query executed successfully");
+            println!("📊 Results: {} value(s) found", values.len());
+
+            for (i, value) in values.iter().enumerate() {
+                println!(
+                    "Result {}: {}",
+                    i + 1,
+                    serde_json::to_string_pretty(value)?
+                );
+            }
+        }
+        Err(e) => {
+            println!("❌ Query failed with error:");
+            println!("   {e}");
+
+            // 分析错误并提供建议
+            provide_error_suggestions(path, &e.to_string());
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "debug")]
+fn run_trace(path: &str, file: Option<&PathBuf>, detailed: bool) -> Result<()> {
+    use xqpath::trace_query;
+
+    let input = read_input(file)?;
+
+    println!("{}", "📊 Path Execution Trace".bold().green());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Path: {path}");
+    if detailed {
+        println!("Mode: Detailed trace");
+    } else {
+        println!("Mode: Standard trace");
+    }
+    println!();
+
+    // 执行跟踪查询
+    println!("🚀 Starting path execution trace...");
+    let result = trace_query!(input, path);
+
+    match result {
+        Ok((values, stats)) => {
+            println!("✅ Trace completed successfully");
+            println!("📊 Execution Time: {:?}", stats.duration);
+            println!("📊 Final Results: {} value(s)", values.len());
+
+            if detailed {
+                println!("\n📋 Detailed Results:");
+                for (i, value) in values.iter().enumerate() {
+                    println!("  [{}] Type: {}", i + 1, get_value_type(value));
+                    println!("      Value: {}", format_value_preview(value));
+                }
+            } else {
+                println!("\n📋 Results Summary:");
+                for (i, value) in values.iter().enumerate() {
+                    println!(
+                        "  [{}] {}: {}",
+                        i + 1,
+                        get_value_type(value),
+                        format_value_preview(value)
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌ Trace failed with error:");
+            println!("   {e}");
+
+            // 分析错误并提供建议
+            provide_error_suggestions(path, &e.to_string());
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "debug")]
+fn provide_error_suggestions(path: &str, error: &str) {
+    println!("\n💡 Error Analysis & Suggestions:");
+
+    if error.contains("parse") || error.contains("syntax") {
+        println!("   🔍 Parse Error Detected:");
+        println!("   • Check path syntax: {path}");
+        println!("   • Common issues:");
+        println!(
+            "     - Missing quotes around field names with special characters"
+        );
+        println!("     - Incorrect array index syntax");
+        println!("     - Unmatched brackets or parentheses");
+    } else if error.contains("field") || error.contains("key") {
+        println!("   🔍 Field Access Error:");
+        println!("   • Field might not exist in the data");
+        println!("   • Try using optional operator: .field?");
+        println!("   • Check if data structure matches expectation");
+    } else if error.contains("index") || error.contains("array") {
+        println!("   🔍 Array Access Error:");
+        println!("   • Array index might be out of bounds");
+        println!("   • Use wildcard for all elements: [*]");
+        println!("   • Check if the value is actually an array");
+    } else if error.contains("type") {
+        println!("   🔍 Type Error:");
+        println!("   • Operation not supported for this data type");
+        println!("   • Use type filters: | string, | array, | object");
+        println!("   • Check data type before operation");
+    } else {
+        println!("   🔍 General Error:");
+        println!("   • Try simplifying the path expression");
+        println!("   • Test with shorter path segments");
+        println!("   • Use --verbose for more details");
+    }
+
+    println!("\n📖 For more help, run: xqpath examples");
+}
+
+#[cfg(feature = "debug")]
+fn get_value_type(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+#[cfg(feature = "debug")]
+fn format_value_preview(value: &Value) -> String {
+    match value {
+        Value::String(s) if s.len() > 50 => format!("\"{}...\"", &s[..47]),
+        Value::Array(arr) => format!("[{} elements]", arr.len()),
+        Value::Object(obj) => format!("{{{}keys}}", obj.len()),
+        _ => value.to_string(),
     }
 }

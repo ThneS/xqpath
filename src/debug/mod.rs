@@ -6,10 +6,13 @@ pub mod logger;
 pub mod reporter;
 pub mod tracer;
 
-// 未来版本功能模块（预留）
-// #[cfg(feature = "profiling")]
-// pub mod profiler;
+// v1.4.2 性能分析模块
+#[cfg(feature = "benchmark")]
+pub mod benchmark;
+#[cfg(feature = "profiling")]
+pub mod profiler;
 
+// 未来版本功能模块（预留）
 // #[cfg(feature = "monitoring")]
 // pub mod config;
 
@@ -144,3 +147,12 @@ pub trait DebugCapable {
     fn enable_debug(&mut self, config: DebugConfig);
     fn get_debug_info(&self) -> DebugInfo;
 }
+
+// v1.4.2 性能分析功能导出
+#[cfg(feature = "profiling")]
+pub use profiler::{MemoryProfiler, PerformanceMonitor, ProfileReport};
+
+#[cfg(feature = "benchmark")]
+pub use benchmark::{
+    BenchmarkConfig, BenchmarkOutputFormat, BenchmarkResult, BenchmarkSuite,
+};

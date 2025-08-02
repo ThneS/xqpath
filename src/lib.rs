@@ -114,6 +114,15 @@ pub use debug::reporter::{
     DiagnosticInfo, EnhancedError, ErrorReporter, ErrorType, FixSuggestion,
 };
 
+// v1.4.2 性能分析功能导出
+#[cfg(feature = "profiling")]
+pub use debug::profiler::{MemoryProfiler, PerformanceMonitor, ProfileReport};
+
+#[cfg(feature = "benchmark")]
+pub use debug::benchmark::{
+    BenchmarkConfig, BenchmarkOutputFormat, BenchmarkResult, BenchmarkSuite,
+};
+
 pub use parser::{
     ast::{ComparisonOp, ExpressionComplexity, LogicalOp, PathExpression},
     evaluation::{

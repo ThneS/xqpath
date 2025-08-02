@@ -1,116 +1,116 @@
-# XQPath 文档索引
+# XQPath 文档中心
 
-本目录包含 XQPath 项目的所有设计文档、规划文档和发布记录，按照 RFC 标准进行组织。
+本目录包含 XQPath 项目的完整文档体系，包括技术规范、开发计划、用户指南等。
 
 ## 📁 文档结构
 
-### 📋 RFC 文档 (`rfcs/`)
+### 📋 技术规范 (`rfcs/`)
 
-正式的设计文档和技术规范，遵循 RFC 格式：
+正式的技术规范和设计文档：
 
 - **RFC-001**: [jq 语法兼容性分析](rfcs/RFC-001-jq-syntax-compatibility.md)
-- **RFC-002**: [v1.1 表达式系统设计](rfcs/RFC-002-expression-system.md)
-- **RFC-003**: [v1.2 内置函数系统](rfcs/RFC-003-builtin-functions.md)
-- **RFC-004**: [v1.3 用户自定义函数](rfcs/RFC-004-user-defined-functions.md)
+- **RFC-002**: [表达式系统设计](rfcs/RFC-002-expression-system.md)
+- **RFC-003**: [内置函数系统](rfcs/RFC-003-builtin-functions.md)
 
-### 🎯 规划文档 (`planning/`)
+### 🔧 开发计划
 
-项目发展规划和路线图：
+#### 调试与维测能力建设
 
+- [调试计划总览](debug-plan-overview.md) - 整体调试能力规划
+- [实施时间表](implementation-timeline.md) - 各版本开发时间安排
+
+#### 版本计划
+
+- [v1.4.1 调试计划](debug-plan-v1.4.1.md) - 基础调试系统 ✅ 已完成
+- [v1.4.2 调试计划](debug-plan-v1.4.2.md) - 性能监控系统 ✅ 已完成
+- [v1.4.3 调试计划](debug-plan-v1.4.3.md) - 运维监控系统 🚧 待实现
+
+### 📈 版本规划 (`planning/`)
+
+- [后续版本路线图](planning/post-release-roadmap.md)
 - [v1.2 开发路线图](planning/roadmap-v1.2.md)
 - [v1.3 开发路线图](planning/roadmap-v1.3.md)
-- [发布后后续规划](planning/post-release-roadmap.md)
 
-### 📦 发布文档 (`releases/`)
+### 🏗️ 设计文档 (`design/`)
 
-版本发布记录和报告：
+具体功能的详细设计：
+
+- [用户函数实现计划](design/user-functions-implementation.md)
+
+### 📦 发布记录 (`releases/`)
+
+版本发布历史和报告：
 
 - [v0.0.1 发布报告](releases/v0.0.1-release-report.md)
 - [v1.1 进度报告](releases/v1.1-progress-report.md)
 - [v1.2 发布说明](releases/v1.2-release-notes.md)
+- [v1.4.1 最终报告](v1.4.1-final-report.md)
 
-### 🏗️ 设计文档 (`design/`)
+### 📖 用户指南
 
-具体功能的设计文档：
+- [快速开始指南](quick-start-guide.md) - XQPath 快速上手
+- [基准测试结构](benchmarks-structure.md) - 性能测试架构说明
 
-- [用户函数实现计划](design/user-functions-implementation.md)
-- [模块系统设计](design/module-system-design.md)
-- [错误处理机制](design/error-handling-design.md)
+### 📚 历史文档 (`archive/`)
 
-### 📚 归档文档 (`archive/`)
-
-历史文档和已完成的设计文档：
+已完成或废弃的历史文档：
 
 - [v1.1 实现计划](archive/implementation-plan-v1.1.md)
 
-## 📖 阅读指南
+## 🚀 阅读指南
 
-### 🚀 快速开始
+### 新用户
 
-- 新用户：先阅读 [README.md](../README.md)
-- 开发者：查看 [RFC 文档](rfcs/) 了解技术设计
-- 贡献者：参考 [规划文档](planning/) 了解项目方向
+1. 先阅读 [README.md](../README.md) 了解项目概况
+2. 查看 [快速开始指南](quick-start-guide.md) 学习基本使用
+3. 参考 [RFC 文档](rfcs/) 了解技术细节
 
-### 🔍 查找信息
+### 开发者
 
-- **技术规范**: 查看 `rfcs/` 目录
-- **开发进度**: 查看 `releases/` 目录
-- **未来规划**: 查看 `planning/` 目录
-- **实现细节**: 查看 `design/` 目录
+1. 查看 [技术规范](rfcs/) 了解系统设计
+2. 参考 [开发计划](#开发计划) 了解当前进度
+3. 查看 [版本规划](planning/) 了解项目方向
 
-### 📝 文档标准
+### 贡献者
 
-#### RFC 文档格式
+1. 阅读 [实施时间表](implementation-timeline.md) 了解开发节奏
+2. 查看待实现功能（标记为 🚧 的项目）
+3. 参考已完成功能的设计文档
 
-```markdown
-# RFC-XXX: [标题]
+## 📊 当前状态
 
-## 摘要
+### ✅ 已完成
 
-简短描述提案内容...
+- **v1.4.1**: 基础调试系统（结构化日志、CLI 调试选项、错误诊断）
+- **v1.4.2**: 性能监控系统（性能指标收集、基准测试、性能报告）
 
-## 动机
+### 🚧 开发中
 
-为什么需要这个功能...
+- **v1.4.3**: 运维监控系统（健康检查、配置管理、运维工具）
 
-## 详细设计
+### 📋 规划中
 
-技术实现细节...
+- 后续版本功能规划见 [规划文档](planning/)
 
-## 实现计划
+## 📝 文档维护
 
-具体的实现步骤...
+### 文档分类
 
-## 未解决的问题
+- **RFC**: 技术规范和系统设计
+- **计划**: 开发计划和实施方案
+- **规划**: 版本路线图和长期规划
+- **指南**: 用户文档和使用说明
+- **报告**: 发布记录和总结报告
 
-需要进一步讨论的问题...
-```
+### 更新原则
 
-#### 版本命名规则
-
-- **RFC**: RFC-001, RFC-002, ...
-- **发布**: v1.0.0, v1.1.0, v1.2.0, ...
-- **规划**: roadmap-v1.x, planning-YYYY-MM, ...
-
-## 🔄 维护指南
-
-### 文档生命周期
-
-1. **草案** (Draft) - 初始设计阶段
-2. **审查** (Review) - 社区审查阶段
-3. **接受** (Accepted) - 正式采纳
-4. **实现** (Implemented) - 功能实现完成
-5. **归档** (Archived) - 移入归档目录
-
-### 更新流程
-
-1. 新功能设计 → 创建 RFC 文档
-2. 实现完成 → 更新发布文档
-3. 版本发布 → 创建发布报告
-4. 功能弃用 → 移入归档目录
+1. **及时性**: 功能实现后及时更新相关文档
+2. **准确性**: 确保文档与代码实现保持一致
+3. **完整性**: 重要功能都应有对应的设计文档
+4. **可维护性**: 保持清晰的文档结构和分类
 
 ---
 
-**文档维护者**: XQPath 项目组
-**最后更新**: 2025 年 7 月 27 日
-**格式版本**: v1.0
+**维护团队**: XQPath 项目组
+**最后更新**: 2025 年 8 月 2 日
+**文档版本**: v2.0
