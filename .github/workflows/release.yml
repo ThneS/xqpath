@@ -96,74 +96,74 @@ jobs:
           name: xqpath-${{ matrix.target }}
           path: releases/*
 
-  # 发布到 crates.io
-  publish-crates:
-    name: 发布到 crates.io
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'release'
+  # # 发布到 crates.io
+  # publish-crates:
+  #   name: 发布到 crates.io
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   if: github.event_name == 'release'
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: 安装 Rust
-        uses: dtolnay/rust-toolchain@stable
+  #     - name: 安装 Rust
+  #       uses: dtolnay/rust-toolchain@stable
 
-      - name: 缓存 Cargo
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-publish-${{ hashFiles('**/Cargo.lock') }}
+  #     - name: 缓存 Cargo
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: ${{ runner.os }}-publish-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: 发布到 crates.io
-        run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
+  #     - name: 发布到 crates.io
+  #       run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
 
-  # 创建 GitHub Release
-  create-release:
-    name: 创建 GitHub Release
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'workflow_dispatch'
+  # # 创建 GitHub Release
+  # create-release:
+  #   name: 创建 GitHub Release
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   if: github.event_name == 'workflow_dispatch'
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: 下载所有构建产物
-        uses: actions/download-artifact@v3
+  #     - name: 下载所有构建产物
+  #       uses: actions/download-artifact@v3
 
-      - name: 创建 Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: XQPath ${{ github.event.inputs.version }}
-          body: |
-            ## XQPath ${{ github.event.inputs.version }}
+  #     - name: 创建 Release
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         tag_name: ${{ github.event.inputs.version }}
+  #         name: XQPath ${{ github.event.inputs.version }}
+  #         body: |
+  #           ## XQPath ${{ github.event.inputs.version }}
 
-            ### 新特性
-            - 配置管理系统
-            - 交互式调试器
-            - 优化的测试框架
+  #           ### 新特性
+  #           - 配置管理系统
+  #           - 交互式调试器
+  #           - 优化的测试框架
 
-            ### 下载
-            选择适合您平台的二进制文件：
-            - Linux (x86_64): xqpath-x86_64-unknown-linux-gnu.tar.gz
-            - Windows (x86_64): xqpath-x86_64-pc-windows-msvc.zip
-            - macOS (x86_64): xqpath-x86_64-apple-darwin.tar.gz
-            - macOS (ARM64): xqpath-aarch64-apple-darwin.tar.gz
+  #           ### 下载
+  #           选择适合您平台的二进制文件：
+  #           - Linux (x86_64): xqpath-x86_64-unknown-linux-gnu.tar.gz
+  #           - Windows (x86_64): xqpath-x86_64-pc-windows-msvc.zip
+  #           - macOS (x86_64): xqpath-x86_64-apple-darwin.tar.gz
+  #           - macOS (ARM64): xqpath-aarch64-apple-darwin.tar.gz
 
-            ### 安装
-            ```bash
-            # 通过 cargo 安装
-            cargo install xqpath
+  #           ### 安装
+  #           ```bash
+  #           # 通过 cargo 安装
+  #           cargo install xqpath
 
-            # 或下载二进制文件
-            wget https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version }}/xqpath-x86_64-unknown-linux-gnu.tar.gz
-            tar -xzf xqpath-x86_64-unknown-linux-gnu.tar.gz
-            ```
-          files: |
-            **/xqpath-*
-          draft: false
-          prerelease: false
+  #           # 或下载二进制文件
+  #           wget https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version }}/xqpath-x86_64-unknown-linux-gnu.tar.gz
+  #           tar -xzf xqpath-x86_64-unknown-linux-gnu.tar.gz
+  #           ```
+  #         files: |
+  #           **/xqpath-*
+  #         draft: false
+  #         prerelease: false
