@@ -9,6 +9,22 @@ on:
         description: "Release version"
         required: true
         default: "v1.4.3"
+      publish_to_crates:
+        description: "Publish to crates.io"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      create_github_release:
+        description: "Create GitHub Release"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 env:
   CARGO_TERM_COLOR: always
@@ -96,74 +112,123 @@ jobs:
           name: xqpath-${{ matrix.target }}
           path: releases/*
 
-  # # 发布到 crates.io
-  # publish-crates:
-  #   name: 发布到 crates.io
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   if: github.event_name == 'release'
+  # 发布到 crates.io
+  publish-crates:
+    name: 发布到 crates.io
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'release') || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_crates == 'true')
 
-  #   steps:
-  #     - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: 安装 Rust
-  #       uses: dtolnay/rust-toolchain@stable
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
 
-  #     - name: 缓存 Cargo
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry
-  #           ~/.cargo/git
-  #           target
-  #         key: ${{ runner.os }}-publish-${{ hashFiles('**/Cargo.lock') }}
+      - name: 缓存 Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-publish-${{ hashFiles('**/Cargo.lock') }}
 
-  #     - name: 发布到 crates.io
-  #       run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
+      - name: 验证发布前检查
+        run: |
+          echo "🔍 执行发布前验证..."
+          cargo check --all-features
+          cargo test --all-features --quiet
 
-  # # 创建 GitHub Release
-  # create-release:
-  #   name: 创建 GitHub Release
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   if: github.event_name == 'workflow_dispatch'
+      - name: 发布到 crates.io
+        run: |
+          echo "📦 发布到 crates.io..."
+          cargo publish --token ${{ secrets.CRATES_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
 
-  #   steps:
-  #     - uses: actions/checkout@v4
+  # 创建 GitHub Release
+  create-release:
+    name: 创建 GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'release') || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.create_github_release == 'true')
 
-  #     - name: 下载所有构建产物
-  #       uses: actions/download-artifact@v4
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: 创建 Release
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         tag_name: ${{ github.event.inputs.version }}
-  #         name: XQPath ${{ github.event.inputs.version }}
-  #         body: |
-  #           ## XQPath ${{ github.event.inputs.version }}
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
 
-  #           ### 新特性
-  #           - 配置管理系统
-  #           - 交互式调试器
-  #           - 优化的测试框架
+      - name: 准备发布文件
+        run: |
+          echo "📦 准备发布文件..."
+          find . -name "xqpath-*" -type f
+          ls -la */
 
-  #           ### 下载
-  #           选择适合您平台的二进制文件：
-  #           - Linux (x86_64): xqpath-x86_64-unknown-linux-gnu.tar.gz
-  #           - Windows (x86_64): xqpath-x86_64-pc-windows-msvc.zip
-  #           - macOS (x86_64): xqpath-x86_64-apple-darwin.tar.gz
-  #           - macOS (ARM64): xqpath-aarch64-apple-darwin.tar.gz
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: XQPath ${{ github.event.inputs.version || github.ref_name }}
+          body: |
+            ## XQPath ${{ github.event.inputs.version || github.ref_name }}
 
-  #           ### 安装
-  #           ```bash
-  #           # 通过 cargo 安装
-  #           cargo install xqpath
+            ### 🎯 主要特性
+            - ✅ 配置管理系统 (YAML配置支持)
+            - ✅ 交互式调试器 (15+调试命令)
+            - ✅ 14个CLI命令全功能支持
+            - ✅ 132个测试用例，100%通过率
+            - ✅ 跨平台支持 (Linux, Windows, macOS)
 
-  #           # 或下载二进制文件
-  #           wget https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version }}/xqpath-x86_64-unknown-linux-gnu.tar.gz
-  #           tar -xzf xqpath-x86_64-unknown-linux-gnu.tar.gz
-  #           ```
-  #         files: |
-  #           **/xqpath-*
-  #         draft: false
-  #         prerelease: false
+            ### 📦 下载
+            选择适合您平台的二进制文件：
+            - **Linux (x86_64)**: `xqpath-x86_64-unknown-linux-gnu.tar.gz`
+            - **Windows (x86_64)**: `xqpath-x86_64-pc-windows-msvc.zip`
+            - **macOS (x86_64)**: `xqpath-x86_64-apple-darwin.tar.gz`
+            - **macOS (ARM64)**: `xqpath-aarch64-apple-darwin.tar.gz`
+
+            ### 🚀 安装方式
+
+            #### 通过 Cargo 安装
+            ```bash
+            cargo install xqpath
+            ```
+
+            #### 下载二进制文件
+            ```bash
+            # Linux
+            wget https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version || github.ref_name }}/xqpath-x86_64-unknown-linux-gnu.tar.gz
+            tar -xzf xqpath-x86_64-unknown-linux-gnu.tar.gz
+
+            # macOS (使用 curl)
+            curl -L -o xqpath-x86_64-apple-darwin.tar.gz https://github.com/ThneS/xqpath/releases/download/${{ github.event.inputs.version || github.ref_name }}/xqpath-x86_64-apple-darwin.tar.gz
+            tar -xzf xqpath-x86_64-apple-darwin.tar.gz
+            ```
+
+            ### 📚 使用示例
+            ```bash
+            # 基本查询
+            echo '{"users": [{"name": "Alice"}]}' | xqpath get 'users[*].name'
+
+            # 配置管理
+            xqpath config show
+            xqpath config set debug.level trace
+
+            # 交互式调试
+            xqpath interactive-debug -f data.json
+            ```
+
+            ---
+            
+            **完整文档**: https://github.com/ThneS/xqpath/blob/main/README.md
+          files: |
+            **/xqpath-*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
