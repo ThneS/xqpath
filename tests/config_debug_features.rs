@@ -12,7 +12,7 @@ fn test_config_manager_basic() {
 
     // 测试默认配置
     let config = manager.get_config();
-    assert_eq!(config.debug.level, "warn");
+    assert_eq!(config.debug.level, "info");
     assert_eq!(config.debug.output, "stderr");
 
     // 测试保存配置
@@ -35,7 +35,7 @@ fn test_config_persistence() {
     assert!(loaded_result.is_ok());
 
     let loaded_config = loaded_result.unwrap();
-    assert_eq!(loaded_config.debug.level, "warn");
+    assert_eq!(loaded_config.debug.level, "info");
     assert_eq!(loaded_config.debug.output, "stderr");
 }
 

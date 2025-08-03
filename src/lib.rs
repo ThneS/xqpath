@@ -92,7 +92,6 @@ pub mod debug;
 pub mod config;
 
 // 交互式调试器模块 (v1.4.3+)
-#[cfg(feature = "interactive-debug")]
 pub mod debugger;
 
 // 重新导出主要类型和函数
@@ -136,7 +135,6 @@ pub use debug::benchmark::{
 pub use config::{ConfigError, ConfigManager, ConfigResult, XQPathConfig};
 
 // v1.4.3 交互式调试器功能导出
-#[cfg(feature = "interactive-debug")]
 pub use debugger::{
     Breakpoint, DataInspector, DebugCommand, DebugError, DebugResult,
     DebugSession, QueryEvaluator, WatchPoint, XQPathDebugger,

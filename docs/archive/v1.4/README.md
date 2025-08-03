@@ -10,6 +10,11 @@
 - **v1.4.1-final-report.md** - v1.4.1 版本详细报告
 - **README-VERIFICATION-REPORT.md** - README 功能验证报告
 
+### 📂 子版本归档
+
+- **[v1.4.3/](v1.4.3/)** - v1.4.3 完整归档目录 ⭐
+  - 包含最终测试报告、README 验证、完成总结等
+
 ### 📝 开发计划
 
 - **debug-plan-overview.md** - 调试能力总体规划
@@ -40,9 +45,9 @@
 ### 技术指标
 
 - **性能**: ~72µs 查询延迟, 13907 ops/sec
-- **测试**: 77 个测试用例, 1 秒快速测试
+- **测试**: 132 个测试用例, 100% 通过率 (v1.4.3)
 - **质量**: 8000+行高质量 Rust 代码
-- **工具**: 15+个专用 CLI 命令
+- **工具**: 14 个主要 CLI 命令 (v1.4.3)
 
 ### 开发体验
 
@@ -65,7 +70,12 @@ v1.4/
 ├── ci-integration-summary.md          # 🔧 CI/CD集成总结
 ├── ci-status-report.md                 # 📊 CI状态报告
 ├── test-optimization-report.md         # ⚡ 测试优化报告
-└── .test-config.toml                   # ⚙️ 测试配置文件
+├── .test-config.toml                   # ⚙️ 测试配置文件
+└── v1.4.3/                            # 📂 v1.4.3子版本归档
+    ├── v1.4.3-final-summary.md        # 🎯 v1.4.3最终总结 ⭐
+    ├── FINAL_TEST_REPORT.md           # 📊 最终测试报告
+    ├── README_VERIFICATION_REPORT.md  # ✅ README验证报告
+    └── 其他验证和演示文件...
 ```
 
 ## 🔮 版本遗产

@@ -54,7 +54,7 @@ crossterm = { version = "0.27", optional = true }
 rustyline = { version = "13.0", optional = true }
 
 [features]
-default = ["json", "yaml", "cli"]
+default = ["json", "yaml", "cli", "config-management", "interactive-debug"]
 
 # 核心功能
 json = ["serde_json"]
