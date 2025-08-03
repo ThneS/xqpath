@@ -29,7 +29,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -59,7 +59,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -86,7 +86,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -110,7 +110,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -140,7 +140,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -174,7 +174,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: 缓存 Cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -189,7 +189,7 @@ jobs:
         run: make release
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: xqpath-release-${{ github.sha }}
           path: target/release/xqpath*
